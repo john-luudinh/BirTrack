@@ -59,17 +59,34 @@ def run(settings):
             student_backbone = cfg_teacher.MODEL['BACKBONE']['TYPE']
             teacher_backbone = student_backbone.replace('_distilled', '')
             cfg_teacher.MODEL['BACKBONE']['TYPE'] = teacher_backbone
+
+            # Teacher should not use student refiner
+            if hasattr(cfg_teacher.MODEL, "REFINER"):
+                saved_refiner_type = cfg_teacher.MODEL.REFINER.TYPE
+                cfg_teacher.MODEL.REFINER.TYPE = "NONE"
+            else:
+                saved_refiner_type = "NONE"
+
             net_teacher = build_ortrack(cfg_teacher)
-            root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
-            checkpoint = torch.load(
-                os.path.join(root_path, f'teacher_model/{teacher_backbone}/ORTrack_ep0300.pth.tar'),
-                map_location="cpu"
-            )
+
+            # Determine checkpoint path
+            custom_ckpt = getattr(cfg.MODEL, "TEACHER_CKPT", "")
+            if custom_ckpt and os.path.exists(custom_ckpt):
+                teacher_ckpt_path = custom_ckpt
+            else:
+                root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+                teacher_ckpt_path = os.path.join(root_path, f'teacher_model/{teacher_backbone}/ORTrack_ep0300.pth.tar')
+
+            print(f'Loading teacher checkpoint from: {teacher_ckpt_path}')
+            checkpoint = torch.load(teacher_ckpt_path, map_location="cpu")
             net_teacher.load_state_dict(checkpoint["net"], strict=False)
             net_teacher.cuda()
-            print(f'Load pretrained model from: {cfg.MODEL.PRETRAIN_FILE}')
 
+            # Restore student configuration
             cfg.MODEL['BACKBONE']['TYPE'] = student_backbone
+            if hasattr(cfg.MODEL, "REFINER"):
+                cfg.MODEL.REFINER.TYPE = saved_refiner_type
+
             net = build_ortrack(cfg)
 
         else:

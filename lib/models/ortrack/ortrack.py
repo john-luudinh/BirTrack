@@ -20,15 +20,18 @@ from lib.models.ortrack.eva import eva02_tiny_patch14_224, eva02_tiny_patch14_22
 class ORTrack(nn.Module):
     """ This is the base class for ORTrack """
 
-    def __init__(self, transformer, box_head, aux_loss=False, head_type="CORNER"):
+    def __init__(self, transformer, box_head, aux_loss=False, head_type="CORNER", refiner=None):
         """ Initializes the model.
         Parameters:
             transformer: torch module of the transformer architecture.
             aux_loss: True if auxiliary decoding losses (loss at each decoder layer) are to be used.
+            refiner: optional spatial refinement module (e.g. RepBLGR) placed before prediction head.
         """
         super().__init__()
         self.backbone = transformer
         self.box_head = box_head
+        self.refiner = refiner if refiner is not None else nn.Identity()
+        self.use_internal_orr = True  # set to False when SA-ORR is computed externally by Actor
 
         self.aux_loss = aux_loss
         self.head_type = head_type
@@ -138,7 +141,7 @@ class ORTrack(nn.Module):
                 is_distill=False,
                 ):
 
-        if not is_distill:
+        if not is_distill and self.use_internal_orr:
             if self.training and self.randomMask == True:
                 mask = self.masking(template, 16, 0.3, template.device)
                 mask = mask.repeat(1,template.shape[1],1,1)
@@ -157,7 +160,7 @@ class ORTrack(nn.Module):
 
         x, aux_dict = self.backbone(z=template, x=search)
 
-        if self.training and not is_distill:
+        if self.training and not is_distill and self.use_internal_orr:
             x1, aux_dict1 = self.backbone(z=template * mask, x=search)
             sim_loss = torch.nn.functional.mse_loss(x[:, :self.feat_len_t],x1[:, :self.feat_len_t].detach())
         else:
@@ -183,6 +186,9 @@ class ORTrack(nn.Module):
         bs, Nq, C, HW = opt.size()
         opt_feat = opt.view(-1, C, self.feat_sz_s, self.feat_sz_s)
 
+        # Apply BiRTrack refiner (RepBLGR) if configured
+        opt_feat = self.refiner(opt_feat)
+
         if self.head_type == "CORNER":
             # run the corner head
             pred_box, score_map = self.box_head(opt_feat, True)
@@ -190,6 +196,7 @@ class ORTrack(nn.Module):
             outputs_coord_new = outputs_coord.view(bs, Nq, 4)
             out = {'pred_boxes': outputs_coord_new,
                    'score_map': score_map,
+                   'search_feat_2d': opt_feat,
                    }
             return out
 
@@ -202,10 +209,16 @@ class ORTrack(nn.Module):
             out = {'pred_boxes': outputs_coord_new,
                    'score_map': score_map_ctr,
                    'size_map': size_map,
-                   'offset_map': offset_map}
+                   'offset_map': offset_map,
+                   'search_feat_2d': opt_feat}
             return out
         else:
             raise NotImplementedError
+
+    def switch_to_deploy(self):
+        """Switch internal refiner to deploy mode for inference / TensorRT optimization."""
+        if hasattr(self.refiner, 'switch_to_deploy'):
+            self.refiner.switch_to_deploy()
 
 
 def build_ortrack(cfg, training=True):
@@ -254,11 +267,30 @@ def build_ortrack(cfg, training=True):
 
     box_head = build_box_head(cfg, hidden_dim)
 
+    # Build BiRTrack spatial refiner (RepBLGR) if configured
+    refiner = None
+    refiner_cfg = getattr(cfg.MODEL, "REFINER", None)
+    if refiner_cfg is not None and getattr(refiner_cfg, "TYPE", "NONE") == "REP_BLGR":
+        from lib.models.layers.rep_blgr import RepBLGR
+        num_heads = getattr(refiner_cfg, "NUM_HEADS", 3)
+        window_size = getattr(refiner_cfg, "WINDOW", 2)
+        bidirectional = getattr(refiner_cfg, "BIDIRECTIONAL", False)
+        global_type = getattr(refiner_cfg, "GLOBAL", "fasa")
+        refiner = RepBLGR(
+            dim=hidden_dim,
+            num_heads=num_heads,
+            window_size=window_size,
+            bidirectional=bidirectional,
+            global_type=global_type,
+            deploy=not training
+        )
+
     model = ORTrack(
         backbone,
         box_head,
         aux_loss=False,
         head_type=cfg.MODEL.HEAD.TYPE,
+        refiner=refiner,
     )
 
     if 'ORTrack' in cfg.MODEL.PRETRAIN_FILE and training:

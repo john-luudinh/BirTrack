@@ -1,4 +1,8 @@
-import jpeg4py
+try:
+    import jpeg4py
+except ImportError:
+    jpeg4py = None
+
 import cv2 as cv
 from PIL import Image
 import numpy as np
@@ -15,12 +19,13 @@ davis_palette[:22, :] = [[0, 0, 0], [128, 0, 0], [0, 128, 0], [128, 128, 0],
 def default_image_loader(path):
     """The default image loader, reads the image from the given path. It first tries to use the jpeg4py_loader,
     but reverts to the opencv_loader if the former is not available."""
+    if jpeg4py is None:
+        return opencv_loader(path)
     if default_image_loader.use_jpeg4py is None:
-        # Try using jpeg4py
         im = jpeg4py_loader(path)
         if im is None:
             default_image_loader.use_jpeg4py = False
-            print('Using opencv_loader instead.')
+            return opencv_loader(path)
         else:
             default_image_loader.use_jpeg4py = True
             return im
@@ -32,13 +37,13 @@ default_image_loader.use_jpeg4py = None
 
 
 def jpeg4py_loader(path):
-    """ Image reading using jpeg4py https://github.com/ajkxyz/jpeg4py"""
-    try:
-        return jpeg4py.JPEG(path).decode()
-    except Exception as e:
-        print('ERROR: Could not read image "{}"'.format(path))
-        print(e)
-        return None
+    """ Image reading using jpeg4py with fallback to opencv """
+    if jpeg4py is not None:
+        try:
+            return jpeg4py.JPEG(path).decode()
+        except Exception:
+            return opencv_loader(path)
+    return opencv_loader(path)
 
 
 def opencv_loader(path):

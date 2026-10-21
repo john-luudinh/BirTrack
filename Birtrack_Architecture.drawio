@@ -1,0 +1,503 @@
+<?xml version="1.0" ?>
+<mxfile host="app.diagrams.net" modified="2026-10-21T12:00:00.000Z" agent="Antigravity AI Agent" version="21.0.0" type="device">
+  <diagram id="p1_overall" name="1. BiRTrack Overall Architecture">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2360" pageHeight="1320" math="1" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="cell_2" value="&lt;div style=&quot;font-size: 22px; font-weight: bold; color: #0F172A; margin-bottom: 4px;&quot;&gt;BiRTrack: Reparameterized Bidirectional Local-Global Refiner &amp;amp; Search-Aware Adaptive Distillation&lt;/div&gt;&lt;div style=&quot;font-size: 13px; color: #334155;&quot;&gt;End-to-End UAV Tracking Architecture: Single-Stream ViT (l=8) &amp;bull; Structural Reparameterization (Rep-BLGR) &amp;bull; Zero-Inference Training (SA-ORR &amp;amp; MI-AFKD) &amp;bull; 285+ FPS on RTX / 75+ FPS on Orin Nano&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#CBD5E1;strokeWidth=2;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="30" width="2280" height="95" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_3" value="&lt;b&gt;1. INPUTS &amp;amp; PATCH EMBEDDING&lt;/b&gt;" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=34;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;html=1;fillColor=#EFF6FF;strokeColor=#3B82F6;strokeWidth=2;fontSize=14;fontColor=#1E3A8A;rounded=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="145" width="400" height="1130" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_4" value="&lt;b&gt;Template Image Z&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px; color:#475569;&quot;&gt;B &amp;times; 3 &amp;times; 128 &amp;times; 128&lt;/span&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px; color:#2563EB;&quot;&gt;Target Crop (Frame 0 or Reference)&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DBEAFE;strokeColor=#2563EB;strokeWidth=2;fontSize=12;fontColor=#1E40AF;" vertex="1" parent="cell_3">
+          <mxGeometry x="70" y="200" width="340" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_5" value="&lt;b&gt;Search Image X&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px; color:#475569;&quot;&gt;B &amp;times; 3 &amp;times; 256 &amp;times; 256&lt;/span&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px; color:#059669;&quot;&gt;Current Frame Search Region&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D1FAE5;strokeColor=#059669;strokeWidth=2;fontSize=12;fontColor=#065F46;" vertex="1" parent="cell_3">
+          <mxGeometry x="70" y="330" width="340" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_6" value="&lt;b&gt;Patch Embedding (Z)&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px; color:#475569;&quot;&gt;Conv2d(3, 192, k=16, s=16)&lt;/span&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px; color:#1E40AF;&quot;&gt;Tokens: K&lt;sub&gt;z&lt;/sub&gt; = 64 &amp;times; 192&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#3B82F6;strokeWidth=1.5;fontSize=12;" vertex="1" parent="cell_3">
+          <mxGeometry x="70" y="470" width="340" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_7" value="&lt;b&gt;Patch Embedding (X)&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px; color:#475569;&quot;&gt;Conv2d(3, 192, k=16, s=16)&lt;/span&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px; color:#059669;&quot;&gt;Tokens: K&lt;sub&gt;x&lt;/sub&gt; = 256 &amp;times; 192&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#10B981;strokeWidth=1.5;fontSize=12;" vertex="1" parent="cell_3">
+          <mxGeometry x="70" y="580" width="340" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_8" value="&lt;b&gt;Add Learnable Position Embeddings&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px; color:#475569;&quot;&gt;Pos_Emb_Z: [1, 64, 192]&lt;br&gt;Pos_Emb_X: [1, 256, 192]&lt;br&gt;+ Pos_Dropout(p=0.0)&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#D97706;strokeWidth=1.5;fontSize=11;fontColor=#92400E;" vertex="1" parent="cell_3">
+          <mxGeometry x="70" y="690" width="340" height="85" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_9" value="&lt;b&gt;Concat Tokens [Z, X]&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:12px; font-weight:bold; color:#1E293B;&quot;&gt;Tensor: [B, 320, 192]&lt;/span&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px; color:#64748B;&quot;&gt;Unified Single-Stream Sequence&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F1F5F9;strokeColor=#475569;strokeWidth=2;fontSize=11;" vertex="1" parent="cell_3">
+          <mxGeometry x="70" y="810" width="340" height="75" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_10" value="&lt;b&gt;Key Engineering Property:&lt;/b&gt;&lt;br&gt;&lt;div style=&quot;text-align:left; font-size:10px; line-height:1.4; color:#334155; margin-top:4px;&quot;&gt;&amp;bull; Fixed patch size: 16 &amp;times; 16&lt;br&gt;&amp;bull; No dynamic sequence lengths&lt;br&gt;&amp;bull; Constant memory stride&lt;br&gt;&amp;bull; Zero unstructured RAM access&lt;br&gt;&amp;bull; 100% deterministic static tensor shapes&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#94A3B8;strokeWidth=1;fontSize=11;" vertex="1" parent="cell_3">
+          <mxGeometry x="70" y="920" width="340" height="150" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_11" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_4" target="cell_6">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_12" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_5" target="cell_7">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_13" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_6" target="cell_8">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_14" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_7" target="cell_8">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_15" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_8" target="cell_9">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_16" value="&lt;b&gt;2. STATIC ViT BACKBONE (l = 8 BLOCKS)&lt;/b&gt;" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=34;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;html=1;fillColor=#F5F3FF;strokeColor=#7C3AED;strokeWidth=2;fontSize=14;fontColor=#5B21B6;rounded=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="470" y="145" width="450" height="1130" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_17" value="&lt;b&gt;Input Tokens: [B, 320, 192]&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EDE9FE;strokeColor=#8B5CF6;strokeWidth=1.5;fontSize=11;fontColor=#4C1D95;" vertex="1" parent="cell_16">
+          <mxGeometry x="500" y="200" width="390" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_18" value="&lt;b&gt;Transformer Block 1&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px; color:#475569;&quot;&gt;Pre-LN &amp;rarr; Multi-Head Self-Attention (MHSA, h=3) &amp;rarr; + Residual&lt;br&gt;Pre-LN &amp;rarr; MLP (192 &amp;rarr; 768 &amp;rarr; 192, GELU) &amp;rarr; + Residual&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#A78BFA;strokeWidth=1.5;fontSize=11;" vertex="1" parent="cell_16">
+          <mxGeometry x="500" y="270" width="390" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_19" value="&lt;b&gt;Transformer Block 2&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px; color:#475569;&quot;&gt;Joint Attention between Template &amp;amp; Search Tokens&lt;br&gt;Cross-correlation &amp;amp; feature extraction unified in 1 stream&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#A78BFA;strokeWidth=1.5;fontSize=11;" vertex="1" parent="cell_16">
+          <mxGeometry x="500" y="380" width="390" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_20" value="&lt;b&gt;&amp;bull; &amp;bull; &amp;bull; (Blocks 3 to 7: Static Depth) &amp;bull; &amp;bull; &amp;bull;&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FAF5FF;strokeColor=#C4B5FD;strokeWidth=1;dashed=1;fontSize=11;fontColor=#6B21A8;" vertex="1" parent="cell_16">
+          <mxGeometry x="500" y="490" width="390" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_21" value="&lt;b&gt;Transformer Block 8 (Active Depth l=8)&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px; color:#475569;&quot;&gt;Structured Trimming from Teacher (L=12 &amp;rarr; l=8)&lt;br&gt;Zero control flow (no if/else, no dynamic scatter/gather)&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7C3AED;strokeWidth=2;fontSize=11;fontColor=#4C1D95;" vertex="1" parent="cell_16">
+          <mxGeometry x="500" y="560" width="390" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_22" value="&lt;b&gt;Final LayerNorm(192)&lt;/b&gt; &amp;rarr; [B, 320, 192]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EDE9FE;strokeColor=#8B5CF6;strokeWidth=1.5;fontSize=11;" vertex="1" parent="cell_16">
+          <mxGeometry x="500" y="670" width="390" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_23" value="&lt;b&gt;Token Demultiplexer (Slice)&lt;/b&gt;&lt;br&gt;&lt;div style=&quot;font-size:10px; margin-top:4px;&quot;&gt;&lt;span style=&quot;color:#2563EB;&quot;&gt;&amp;bull; tokens[:, :64, :] &amp;rarr; Template Tokens t&lt;sub&gt;z&lt;/sub&gt; [B, 64, 192]&lt;/span&gt;&lt;br&gt;&lt;span style=&quot;color:#059669;&quot;&gt;&amp;bull; tokens[:, 64:, :] &amp;rarr; Search Tokens t&lt;sub&gt;x&lt;/sub&gt; [B, 256, 192]&lt;/span&gt;&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#64748B;strokeWidth=2;fontSize=11;" vertex="1" parent="cell_16">
+          <mxGeometry x="500" y="740" width="390" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_24" value="&lt;b&gt;2D Feature Map Reshaping&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px; font-weight:bold; color:#0F172A;&quot;&gt;t&lt;sub&gt;x&lt;/sub&gt;.transpose(1, 2).view(B, 192, 16, 16)&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ECFDF5;strokeColor=#10B981;strokeWidth=2;fontSize=11;fontColor=#065F46;" vertex="1" parent="cell_16">
+          <mxGeometry x="500" y="850" width="390" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_25" value="&lt;b&gt;Why Structured Trimming over Token Pruning?&lt;/b&gt;&lt;br&gt;&lt;div style=&quot;text-align:left; font-size:10px; line-height:1.4; color:#334155; margin-top:4px;&quot;&gt;&amp;bull; Aba-ViTrack token pruning alters tensor size &amp;rarr; GPU cache miss &amp;amp; memory bandwidth drop (23.6% latency surge).&lt;br&gt;&amp;bull; BiRTrack retains 100% static graph &amp;rarr; TensorRT executes seamless kernel fusion with Batch=1.&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#94A3B8;strokeWidth=1;fontSize=11;" vertex="1" parent="cell_16">
+          <mxGeometry x="500" y="940" width="390" height="130" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_26" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_9" target="cell_17">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_27" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_17" target="cell_18">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_28" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_18" target="cell_19">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_29" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_19" target="cell_20">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_30" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_20" target="cell_21">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_31" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_21" target="cell_22">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_32" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_22" target="cell_23">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_33" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_23" target="cell_24">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_34" value="&lt;b&gt;3. REP-BLGR REFINER (APPLIED ON SEARCH TOKENS)&lt;/b&gt;" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=34;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;html=1;fillColor=#FFFBEB;strokeColor=#F59E0B;strokeWidth=2;fontSize=14;fontColor=#B45309;rounded=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="950" y="145" width="680" height="1130" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_35" value="&lt;b&gt;Input 2D Feature Map: F&lt;sub&gt;search&lt;/sub&gt; [B, 192, 16, 16] &amp;rarr; GroupNorm(1, 192)&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#F59E0B;strokeWidth=1.5;fontSize=11;fontColor=#92400E;" vertex="1" parent="cell_34">
+          <mxGeometry x="980" y="200" width="620" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_36" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.5;" vertex="1" parent="cell_34">
+          <mxGeometry x="980" y="270" width="620" height="310" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_37" value="&lt;b&gt;Training Phase (deploy=False)&lt;/b&gt;" style="rounded=1;fillColor=#EFF6FF;strokeColor=#3B82F6;strokeWidth=1;fontSize=11;fontColor=#1E40AF;" vertex="1" parent="cell_36">
+          <mxGeometry x="990" y="280" width="290" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_38" value="&lt;b&gt;Inference Phase (deploy=True)&lt;/b&gt;" style="rounded=1;fillColor=#ECFDF5;strokeColor=#10B981;strokeWidth=1;fontSize=11;fontColor=#065F46;" vertex="1" parent="cell_36">
+          <mxGeometry x="1300" y="280" width="290" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_39" value="&lt;b&gt;Branch 1:&lt;/b&gt; Conv2d(5&amp;times;5, g=192, no bias) + BN" style="rounded=1;fillColor=#DBEAFE;strokeColor=#60A5FA;strokeWidth=1;fontSize=10;" vertex="1" parent="cell_36">
+          <mxGeometry x="990" y="320" width="290" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_40" value="&lt;b&gt;Branch 2:&lt;/b&gt; Conv2d(3&amp;times;3, g=192, no bias) + BN" style="rounded=1;fillColor=#DBEAFE;strokeColor=#60A5FA;strokeWidth=1;fontSize=10;" vertex="1" parent="cell_36">
+          <mxGeometry x="990" y="380" width="290" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_41" value="&lt;b&gt;Branch 3:&lt;/b&gt; Identity Connection + BN" style="rounded=1;fillColor=#DBEAFE;strokeColor=#60A5FA;strokeWidth=1;fontSize=10;" vertex="1" parent="cell_36">
+          <mxGeometry x="990" y="440" width="290" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_42" value="&lt;b&gt;Linear Addition &amp;oplus; &amp;rarr; F&lt;sub&gt;local&lt;/sub&gt;&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:9px; color:#475569;&quot;&gt;Multi-scale receptive fields (5&amp;times;5, 3&amp;times;3, 1&amp;times;1)&lt;br&gt;capture small UAV targets under high scale shifts&lt;/span&gt;" style="rounded=1;fillColor=#E0E7FF;strokeColor=#6366F1;strokeWidth=1.5;fontSize=10;" vertex="1" parent="cell_36">
+          <mxGeometry x="990" y="495" width="290" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_43" value="&lt;b&gt;Single Equivalent DWConv 5&amp;times;5 Layer&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px; color:#065F46;&quot;&gt;W&lt;sub&gt;equiv&lt;/sub&gt; = W&lt;sub&gt;5&lt;/sub&gt;&lt;sup&gt;fused&lt;/sup&gt; + Pad(W&lt;sub&gt;3&lt;/sub&gt;&lt;sup&gt;fused&lt;/sup&gt;) + Pad(W&lt;sub&gt;id&lt;/sub&gt;&lt;sup&gt;fused&lt;/sup&gt;)&lt;br&gt;b&lt;sub&gt;equiv&lt;/sub&gt; = b&lt;sub&gt;5&lt;/sub&gt;&lt;sup&gt;fused&lt;/sup&gt; + b&lt;sub&gt;3&lt;/sub&gt;&lt;sup&gt;fused&lt;/sup&gt; + b&lt;sub&gt;id&lt;/sub&gt;&lt;sup&gt;fused&lt;/sup&gt;&lt;/span&gt;&lt;br&gt;&lt;br&gt;&lt;b&gt;&amp;check; 0 Extra FLOPs &amp;bull; Single Memory Read&lt;/b&gt;" style="rounded=1;fillColor=#D1FAE5;strokeColor=#10B981;strokeWidth=2;fontSize=11;fontColor=#065F46;" vertex="1" parent="cell_36">
+          <mxGeometry x="1300" y="340" width="290" height="130" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_44" value="&lt;b&gt;switch_to_deploy() Execution&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:9px; color:#475569;&quot;&gt;Executed once before benchmark/runtime.&lt;br&gt;Training branches permanently deleted.&lt;/span&gt;" style="rounded=1;fillColor=#FEF9C3;strokeColor=#CA8A04;strokeWidth=1.5;fontSize=10;" vertex="1" parent="cell_36">
+          <mxGeometry x="1300" y="495" width="290" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_45" value="&lt;b&gt;Local Self-Modulation:&lt;/b&gt; F&lt;sub&gt;local_mod&lt;/sub&gt; = SiLU(F&lt;sub&gt;local&lt;/sub&gt;) = F&lt;sub&gt;local&lt;/sub&gt; &amp;odot; &amp;sigma;(F&lt;sub&gt;local&lt;/sub&gt;)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3E8FF;strokeColor=#A855F7;strokeWidth=1.5;fontSize=11;fontColor=#581C87;" vertex="1" parent="cell_34">
+          <mxGeometry x="980" y="600" width="620" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_46" value="&lt;b&gt;Global Context Extraction (FASA / Lightweight SE)&lt;/b&gt;&lt;br&gt;&lt;div style=&quot;font-size:10px; color:#475569; margin-top:2px;&quot;&gt;&amp;bull; Spatial Downsample: Conv2d(k=5, s=2) &amp;rarr; Feature Map [B, 192, 8, 8]&lt;br&gt;&amp;bull; Cross Attention: Softmax(Q &amp;bull; K&lt;sup&gt;T&lt;/sup&gt; / &amp;radic;d) &amp;bull; V &amp;rarr; F&lt;sub&gt;global&lt;/sub&gt; [B, 192, 16, 16]&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EDE9FE;strokeColor=#7C3AED;strokeWidth=1.5;fontSize=11;" vertex="1" parent="cell_34">
+          <mxGeometry x="980" y="670" width="620" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_47" value="&lt;b&gt;Bidirectional Cross-Modulation Gate&lt;/b&gt;&lt;br&gt;&lt;div style=&quot;font-size:10px; color:#92400E; margin-top:2px;&quot;&gt;F&lt;sub&gt;local&lt;/sub&gt;&lt;sup&gt;&amp;prime;&lt;/sup&gt; = F&lt;sub&gt;local_mod&lt;/sub&gt; &amp;odot; &amp;sigma;(F&lt;sub&gt;global&lt;/sub&gt;) &amp;nbsp;&amp;nbsp;|&amp;nbsp;&amp;nbsp; F&lt;sub&gt;global&lt;/sub&gt;&lt;sup&gt;&amp;prime;&lt;/sup&gt; = F&lt;sub&gt;global&lt;/sub&gt; &amp;odot; &amp;sigma;(F&lt;sub&gt;local_mod&lt;/sub&gt;)&lt;br&gt;&lt;b&gt;F&lt;sub&gt;bidir&lt;/sub&gt; = F&lt;sub&gt;local&lt;/sub&gt;&lt;sup&gt;&amp;prime;&lt;/sup&gt; &amp;odot; F&lt;sub&gt;global&lt;/sub&gt;&lt;sup&gt;&amp;prime;&lt;/sup&gt;&lt;/b&gt;&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#D97706;strokeWidth=2;fontSize=11;" vertex="1" parent="cell_34">
+          <mxGeometry x="980" y="770" width="620" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_48" value="&lt;b&gt;Pointwise Mixer &amp;amp; Learnable Residual&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px; font-weight:bold; color:#0F172A;&quot;&gt;F&lt;sub&gt;refined&lt;/sub&gt; = F&lt;sub&gt;in&lt;/sub&gt; + &amp;gamma; &amp;times; Conv2d(1&amp;times;1)(F&lt;sub&gt;bidir&lt;/sub&gt;)&lt;/span&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px; color:#64748B;&quot;&gt;&amp;gamma; initialized to 0 for ultra-stable warmup&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#EA580C;strokeWidth=2;fontSize=11;" vertex="1" parent="cell_34">
+          <mxGeometry x="980" y="870" width="620" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_49" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_24" target="cell_35">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_50" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_35" target="cell_36">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_51" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_36" target="cell_45">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_52" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_45" target="cell_47">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_53" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_46" target="cell_47">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_54" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_47" target="cell_48">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_55" value="&lt;b&gt;4. PREDICTION HEAD &amp;amp; OUTPUTS&lt;/b&gt;" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=34;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;html=1;fillColor=#FEF2F2;strokeColor=#EF4444;strokeWidth=2;fontSize=14;fontColor=#991B1B;rounded=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="1660" y="145" width="660" height="1130" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_56" value="&lt;b&gt;Refined Search Feature Map: F&lt;sub&gt;refined&lt;/sub&gt; [B, 192, 16, 16]&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEE2E2;strokeColor=#F87171;strokeWidth=1.5;fontSize=11;fontColor=#7F1D1D;" vertex="1" parent="cell_55">
+          <mxGeometry x="1690" y="200" width="600" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_57" value="&lt;b&gt;Prediction Head Backbone (4 &amp;times; Conv-BN-ReLU)&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px; color:#475569;&quot;&gt;4 sequential layers with 256 channels &amp;bull; Preserves high-frequency spatial gradients&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#F87171;strokeWidth=1.5;fontSize=11;" vertex="1" parent="cell_55">
+          <mxGeometry x="1690" y="270" width="600" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_58" value="&lt;b&gt;Score Map (p)&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px; color:#475569;&quot;&gt;[B, 1, 16, 16]&lt;/span&gt;&lt;br&gt;&lt;span style=&quot;font-size:9px; color:#B91C1C;&quot;&gt;Target center probability via modified Focal Loss&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEE2E2;strokeColor=#EF4444;strokeWidth=1.5;fontSize=11;" vertex="1" parent="cell_55">
+          <mxGeometry x="1690" y="360" width="190" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_59" value="&lt;b&gt;Offset Map (o)&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px; color:#475569;&quot;&gt;[B, 2, 16, 16]&lt;/span&gt;&lt;br&gt;&lt;span style=&quot;font-size:9px; color:#B91C1C;&quot;&gt;Sub-pixel center compensation (&amp;delta;x, &amp;delta;y)&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEE2E2;strokeColor=#EF4444;strokeWidth=1.5;fontSize=11;" vertex="1" parent="cell_55">
+          <mxGeometry x="1895" y="360" width="190" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_60" value="&lt;b&gt;Size Map (s)&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px; color:#475569;&quot;&gt;[B, 2, 16, 16]&lt;/span&gt;&lt;br&gt;&lt;span style=&quot;font-size:9px; color:#B91C1C;&quot;&gt;Bounding box dimensions (w, h) in search frame&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEE2E2;strokeColor=#EF4444;strokeWidth=1.5;fontSize=11;" vertex="1" parent="cell_55">
+          <mxGeometry x="2100" y="360" width="190" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_61" value="&lt;b&gt;Bounding Box Decoder:&lt;/b&gt; (x&lt;sub&gt;c&lt;/sub&gt;, y&lt;sub&gt;c&lt;/sub&gt;) = argmax(p) + o &amp;nbsp;&amp;bull;&amp;nbsp; (w, h) = s[x&lt;sub&gt;c&lt;/sub&gt;, y&lt;sub&gt;c&lt;/sub&gt;]&lt;br&gt;&lt;span style=&quot;font-size:12px; font-weight:bold; color:#047857;&quot;&gt;Final Predicted BBox: [x&lt;sub&gt;1&lt;/sub&gt;, y&lt;sub&gt;1&lt;/sub&gt;, x&lt;sub&gt;2&lt;/sub&gt;, y&lt;sub&gt;2&lt;/sub&gt;]&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ECFDF5;strokeColor=#059669;strokeWidth=2;fontSize=11;fontColor=#065F46;" vertex="1" parent="cell_55">
+          <mxGeometry x="1690" y="480" width="600" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_62" value="&lt;b&gt;BiRTrack Performance vs State-of-the-Art Baselines&lt;/b&gt;&lt;br&gt;&lt;table style=&quot;width:100%; border-collapse:collapse; font-size:10px; text-align:center; margin-top:6px;&quot; border=&quot;1&quot;&gt;&lt;tr style=&quot;background:#F1F5F9; font-weight:bold;&quot;&gt;&lt;td&gt;Model&lt;/td&gt;&lt;td&gt;Backbone&lt;/td&gt;&lt;td&gt;Params&lt;/td&gt;&lt;td&gt;FLOPs&lt;/td&gt;&lt;td&gt;FPS (RTX)&lt;/td&gt;&lt;td&gt;VisDrone Prec&lt;/td&gt;&lt;td&gt;UAV123 Succ&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;ORTrack&lt;/b&gt;&lt;/td&gt;&lt;td&gt;ViT (L=12)&lt;/td&gt;&lt;td&gt;7.9M&lt;/td&gt;&lt;td&gt;2.40G&lt;/td&gt;&lt;td&gt;172.4&lt;/td&gt;&lt;td&gt;88.6%&lt;/td&gt;&lt;td&gt;68.2%&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Aba-ViTrack&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Dynamic ViT&lt;/td&gt;&lt;td&gt;7.9M&lt;/td&gt;&lt;td&gt;1.80G&lt;/td&gt;&lt;td&gt;161.2 (RAM drop)&lt;/td&gt;&lt;td&gt;86.4%&lt;/td&gt;&lt;td&gt;67.0%&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;ORTrack-D&lt;/b&gt;&lt;/td&gt;&lt;td&gt;ViT (l=8)&lt;/td&gt;&lt;td&gt;5.3M&lt;/td&gt;&lt;td&gt;1.50G&lt;/td&gt;&lt;td&gt;292.3&lt;/td&gt;&lt;td&gt;84.6% (-4.0%)&lt;/td&gt;&lt;td&gt;65.8%&lt;/td&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#D1FAE5; font-weight:bold; color:#065F46;&quot;&gt;&lt;td&gt;&lt;b&gt;BiRTrack (Ours)&lt;/b&gt;&lt;/td&gt;&lt;td&gt;8 + Rep-BLGR&lt;/td&gt;&lt;td&gt;5.35M&lt;/td&gt;&lt;td&gt;1.52G&lt;/td&gt;&lt;td&gt;285+ FPS&lt;/td&gt;&lt;td&gt;88.2% (+3.6%)&lt;/td&gt;&lt;td&gt;68.0% (+2.2%)&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;div style=&quot;text-align:left; font-size:9.5px; color:#334155; margin-top:8px;&quot;&gt;&amp;bull; Recovers 90%+ of the accuracy lost by layer trimming (+3.6% VisDrone Precision).&lt;br&gt;&amp;bull; Maintains ultra-high speed (285+ FPS) with zero runtime branching or dynamic buffers.&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.5;fontSize=11;" vertex="1" parent="cell_55">
+          <mxGeometry x="1690" y="580" width="600" height="240" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_63" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_48" target="cell_56">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_64" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_56" target="cell_57">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_65" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_57" target="cell_58">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_66" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_57" target="cell_59">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_67" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_57" target="cell_60">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_68" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_58" target="cell_61">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_69" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_59" target="cell_61">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_70" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_60" target="cell_61">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_71" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_61" target="cell_62">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="p2_repblgr" name="2. Rep-BLGR &amp; Reparameterization">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2360" pageHeight="1320" math="1" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="cell_2" value="&lt;div style=&quot;font-size: 22px; font-weight: bold; color: #0F172A; margin-bottom: 4px;&quot;&gt;Rep-BLGR: Structural Re-parameterization &amp;amp; Bidirectional Interaction Deep Dive&lt;/div&gt;&lt;div style=&quot;font-size: 13px; color: #334155;&quot;&gt;Algebraic Operator Fusion: 3-Branch Multi-Scale Training Topology Collapses to a Single 5&amp;times;5 Depthwise Convolutional Layer at Inference&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#CBD5E1;strokeWidth=2;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="30" width="2280" height="95" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_3" value="&lt;b&gt;TRAINING GRAPH (deploy=False)&lt;/b&gt;" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=34;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;html=1;fillColor=#EFF6FF;strokeColor=#3B82F6;strokeWidth=2;fontSize=14;fontColor=#1E40AF;rounded=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="145" width="680" height="1130" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_4" value="&lt;b&gt;Search Features X &amp;isin; &amp;Ropf;&lt;sup&gt;B &amp;times; 192 &amp;times; 16 &amp;times; 16&lt;/sup&gt;&lt;/b&gt;" style="rounded=1;fillColor=#DBEAFE;strokeColor=#2563EB;strokeWidth=1.5;fontSize=12;" vertex="1" parent="cell_3">
+          <mxGeometry x="70" y="200" width="620" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_5" value="&lt;b&gt;Pre-Norm: GroupNorm(num_groups=1, num_channels=192)&lt;/b&gt;" style="rounded=1;fillColor=#FFFFFF;strokeColor=#3B82F6;strokeWidth=1;fontSize=11;" vertex="1" parent="cell_3">
+          <mxGeometry x="70" y="270" width="620" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_6" value="&lt;b&gt;1&amp;times;1 Conv Query Projection: Q = Conv2d(192, 192, k=1)&lt;/b&gt;" style="rounded=1;fillColor=#FFFFFF;strokeColor=#3B82F6;strokeWidth=1;fontSize=11;" vertex="1" parent="cell_3">
+          <mxGeometry x="70" y="335" width="620" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_7" value="" style="rounded=1;fillColor=#F8FAFC;strokeColor=#93C5FD;strokeWidth=1.5;" vertex="1" parent="cell_3">
+          <mxGeometry x="70" y="400" width="620" height="240" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_8" value="&lt;b&gt;RepLocalBranch: 3 Parallel Multi-Scale Operators&lt;/b&gt;" style="rounded=1;fillColor=#EFF6FF;strokeColor=#3B82F6;strokeWidth=1;fontSize=11;fontColor=#1D4ED8;" vertex="1" parent="cell_7">
+          <mxGeometry x="80" y="410" width="600" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_9" value="&lt;b&gt;Branch 5&amp;times;5:&lt;/b&gt; Conv2d(192, 192, k=5, p=2, groups=192) + BatchNorm2d(192)" style="rounded=1;fillColor=#DBEAFE;strokeColor=#3B82F6;strokeWidth=1;fontSize=10;" vertex="1" parent="cell_7">
+          <mxGeometry x="90" y="445" width="580" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_10" value="&lt;b&gt;Branch 3&amp;times;3:&lt;/b&gt; Conv2d(192, 192, k=3, p=1, groups=192) + BatchNorm2d(192)" style="rounded=1;fillColor=#DBEAFE;strokeColor=#3B82F6;strokeWidth=1;fontSize=10;" vertex="1" parent="cell_7">
+          <mxGeometry x="90" y="500" width="580" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_11" value="&lt;b&gt;Branch Identity:&lt;/b&gt; BatchNorm2d(192) (Implicit 1&amp;times;1 Identity Matrix)" style="rounded=1;fillColor=#DBEAFE;strokeColor=#3B82F6;strokeWidth=1;fontSize=10;" vertex="1" parent="cell_7">
+          <mxGeometry x="90" y="555" width="580" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_12" value="&lt;b&gt;Element-wise Sum:&lt;/b&gt; Branch_5&amp;times;5(Q) + Branch_3&amp;times;3(Q) + Branch_ID(Q)" style="rounded=1;fillColor=#BFDBFE;strokeColor=#1D4ED8;strokeWidth=1.5;fontSize=10;" vertex="1" parent="cell_7">
+          <mxGeometry x="90" y="600" width="580" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_13" value="&lt;b&gt;SiLU Self-Modulation:&lt;/b&gt; F&lt;sub&gt;local&lt;/sub&gt; = SiLU(Local_Sum)" style="rounded=1;fillColor=#F5F3FF;strokeColor=#8B5CF6;strokeWidth=1.5;fontSize=11;" vertex="1" parent="cell_3">
+          <mxGeometry x="70" y="660" width="620" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_14" value="&lt;b&gt;Global Branch (FASA Adaptive Self-Attention)&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px; color:#475569;&quot;&gt;&amp;bull; Refined Downsampling: Conv2d(k=5, s=2) + BN &amp;rarr; Pool to [B, 192, 8, 8]&lt;br&gt;&amp;bull; KV Projection: Conv2d(192, 384, k=1)&lt;br&gt;&amp;bull; Scaled Dot-Product: Softmax(Q &amp;bull; K&lt;sup&gt;T&lt;/sup&gt; / &amp;radic;d) &amp;bull; V &amp;rarr; F&lt;sub&gt;global&lt;/sub&gt; [B, 192, 16, 16]&lt;/span&gt;" style="rounded=1;fillColor=#EDE9FE;strokeColor=#7C3AED;strokeWidth=1.5;fontSize=11;" vertex="1" parent="cell_3">
+          <mxGeometry x="70" y="725" width="620" height="95" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_15" value="&lt;b&gt;Bidirectional Cross-Modulation:&lt;/b&gt;&lt;br&gt;F&lt;sub&gt;bidir&lt;/sub&gt; = [F&lt;sub&gt;local&lt;/sub&gt; &amp;odot; &amp;sigma;(F&lt;sub&gt;global&lt;/sub&gt;)] &amp;odot; [F&lt;sub&gt;global&lt;/sub&gt; &amp;odot; &amp;sigma;(F&lt;sub&gt;local&lt;/sub&gt;)]" style="rounded=1;fillColor=#FEF3C7;strokeColor=#D97706;strokeWidth=1.5;fontSize=11;" vertex="1" parent="cell_3">
+          <mxGeometry x="70" y="840" width="620" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_16" value="&lt;b&gt;Pointwise Mixer &amp;amp; Learnable Residual Connection:&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px; font-weight:bold;&quot;&gt;Output = X + &amp;gamma; &amp;times; Conv2d(192, 192, k=1)(F&lt;sub&gt;bidir&lt;/sub&gt;)&lt;/span&gt;" style="rounded=1;fillColor=#FFFFFF;strokeColor=#EA580C;strokeWidth=2;fontSize=11;" vertex="1" parent="cell_3">
+          <mxGeometry x="70" y="920" width="620" height="65" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_17" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_4" target="cell_5">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_18" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_5" target="cell_6">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_19" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_6" target="cell_7">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_20" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_7" target="cell_13">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_21" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_13" target="cell_15">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_22" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_14" target="cell_15">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_23" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_15" target="cell_16">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_24" value="&lt;b&gt;MATHEMATICAL ALGEBRA OF STRUCTURAL RE-PARAMETERIZATION&lt;/b&gt;" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=34;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;html=1;fillColor=#FFFBEB;strokeColor=#F59E0B;strokeWidth=2;fontSize=14;fontColor=#B45309;rounded=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="760" y="145" width="800" height="1130" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_25" value="&lt;b&gt;Step 1: Conv2d &amp;amp; BatchNorm Linear Fusion&lt;/b&gt;&lt;br&gt;&lt;div style=&quot;text-align:left; font-size:11px; line-height:1.6; color:#1E293B; margin-top:6px;&quot;&gt;For a convolution kernel W &amp;isin; &amp;Ropf;&lt;sup&gt;C&lt;sub&gt;out&lt;/sub&gt; &amp;times; C&lt;sub&gt;in&lt;/sub&gt; &amp;times; K &amp;times; K&lt;/sup&gt; and subsequent BatchNorm parameters (&amp;gamma;, &amp;beta;, &amp;mu;, &amp;sigma;&lt;sup&gt;2&lt;/sup&gt;, &amp;epsilon;):&lt;br&gt;&lt;div style=&quot;background:#FEF3C7; padding:8px; border-radius:6px; font-family:monospace; font-size:12px; margin:6px 0;&quot;&gt;W&lt;sub&gt;fused&lt;/sub&gt; = W &amp;times; [ &amp;gamma; / &amp;radic;(&amp;sigma;&lt;sup&gt;2&lt;/sup&gt; + &amp;epsilon;) ]&lt;br&gt;b&lt;sub&gt;fused&lt;/sub&gt; = &amp;beta; - [ &amp;mu; &amp;times; &amp;gamma; / &amp;radic;(&amp;sigma;&lt;sup&gt;2&lt;/sup&gt; + &amp;epsilon;) ]&lt;/div&gt;This exact equivalence eliminates BatchNorm latency entirely during inference.&lt;/div&gt;" style="rounded=1;fillColor=#FFFFFF;strokeColor=#F59E0B;strokeWidth=1.5;fontSize=11;" vertex="1" parent="cell_24">
+          <mxGeometry x="790" y="200" width="740" height="210" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_26" value="&lt;b&gt;Step 2: Identity Operator as Depthwise Dirac Delta Kernel&lt;/b&gt;&lt;br&gt;&lt;div style=&quot;text-align:left; font-size:11px; line-height:1.5; color:#1E293B; margin-top:6px;&quot;&gt;The pure Identity connection is rigorously expressed as a 1&amp;times;1 Depthwise Conv kernel with unit weight at center position (0, 0):&lt;br&gt;&lt;div style=&quot;background:#FEF3C7; padding:8px; border-radius:6px; font-family:monospace; font-size:12px; margin:6px 0;&quot;&gt;W&lt;sub&gt;id&lt;/sub&gt; &amp;isin; &amp;Ropf;&lt;sup&gt;C &amp;times; 1 &amp;times; 1 &amp;times; 1&lt;/sup&gt;, &amp;nbsp; W&lt;sub&gt;id&lt;/sub&gt;[c, 0, 0, 0] = 1.0&lt;br&gt;W&lt;sub&gt;id&lt;/sub&gt;&lt;sup&gt;fused&lt;/sup&gt; = &amp;gamma;&lt;sub&gt;id&lt;/sub&gt; / &amp;radic;(&amp;sigma;&lt;sub&gt;id&lt;/sub&gt;&lt;sup&gt;2&lt;/sup&gt; + &amp;epsilon;), &amp;nbsp; b&lt;sub&gt;id&lt;/sub&gt;&lt;sup&gt;fused&lt;/sup&gt; = &amp;beta;&lt;sub&gt;id&lt;/sub&gt; - &amp;mu;&lt;sub&gt;id&lt;/sub&gt; &amp;times; &amp;gamma;&lt;sub&gt;id&lt;/sub&gt; / &amp;radic;(&amp;sigma;&lt;sub&gt;id&lt;/sub&gt;&lt;sup&gt;2&lt;/sup&gt; + &amp;epsilon;)&lt;/div&gt;&lt;/div&gt;" style="rounded=1;fillColor=#FFFFFF;strokeColor=#F59E0B;strokeWidth=1.5;fontSize=11;" vertex="1" parent="cell_24">
+          <mxGeometry x="790" y="430" width="740" height="170" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_27" value="&lt;b&gt;Step 3: Kernel Zero-Padding &amp;amp; Linear Superposition&lt;/b&gt;&lt;br&gt;&lt;div style=&quot;text-align:left; font-size:11px; line-height:1.5; color:#1E293B; margin-top:6px;&quot;&gt;Due to convolution linearity, kernels of smaller spatial size (3&amp;times;3 and 1&amp;times;1) can be zero-padded to 5&amp;times;5:&lt;br&gt;&lt;div style=&quot;background:#FEF3C7; padding:8px; border-radius:6px; font-family:monospace; font-size:12px; margin:6px 0;&quot;&gt;Pad&lt;sub&gt;1&lt;/sub&gt;(W&lt;sub&gt;3&amp;times;3&lt;/sub&gt;&lt;sup&gt;fused&lt;/sup&gt;) &amp;isin; &amp;Ropf;&lt;sup&gt;C &amp;times; 1 &amp;times; 5 &amp;times; 5&lt;/sup&gt; &amp;nbsp; (1 pixel zero-pad on all 4 borders)&lt;br&gt;Pad&lt;sub&gt;2&lt;/sub&gt;(W&lt;sub&gt;1&amp;times;1&lt;/sub&gt;&lt;sup&gt;fused&lt;/sup&gt;) &amp;isin; &amp;Ropf;&lt;sup&gt;C &amp;times; 1 &amp;times; 5 &amp;times; 5&lt;/sup&gt; &amp;nbsp; (2 pixel zero-pad on all 4 borders)&lt;br&gt;&lt;br&gt;&lt;b&gt;W&lt;sub&gt;equiv&lt;/sub&gt; = W&lt;sub&gt;5&amp;times;5&lt;/sub&gt;&lt;sup&gt;fused&lt;/sup&gt; + Pad&lt;sub&gt;1&lt;/sub&gt;(W&lt;sub&gt;3&amp;times;3&lt;/sub&gt;&lt;sup&gt;fused&lt;/sup&gt;) + Pad&lt;sub&gt;2&lt;/sub&gt;(W&lt;sub&gt;1&amp;times;1&lt;/sub&gt;&lt;sup&gt;fused&lt;/sup&gt;)&lt;/b&gt;&lt;br&gt;&lt;b&gt;b&lt;sub&gt;equiv&lt;/sub&gt; = b&lt;sub&gt;5&amp;times;5&lt;/sub&gt;&lt;sup&gt;fused&lt;/sup&gt; + b&lt;sub&gt;3&amp;times;3&lt;/sub&gt;&lt;sup&gt;fused&lt;/sup&gt; + b&lt;sub&gt;id&lt;/sub&gt;&lt;sup&gt;fused&lt;/sup&gt;&lt;/b&gt;&lt;/div&gt;&lt;/div&gt;" style="rounded=1;fillColor=#FFFFFF;strokeColor=#F59E0B;strokeWidth=1.5;fontSize=11;" vertex="1" parent="cell_24">
+          <mxGeometry x="790" y="620" width="740" height="200" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_28" value="&lt;b&gt;Empirical Numerical Verification &amp;amp; Speedup (tools/verify_reparam.py)&lt;/b&gt;&lt;br&gt;&lt;table style=&quot;width:100%; border-collapse:collapse; font-size:11px; margin-top:8px;&quot; border=&quot;1&quot;&gt;&lt;tr style=&quot;background:#FEF3C7; font-weight:bold;&quot;&gt;&lt;td&gt;Metric Tested&lt;/td&gt;&lt;td&gt;Measured Value&lt;/td&gt;&lt;td&gt;Standard / Criterion&lt;/td&gt;&lt;td&gt;Verification Status&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Max Absolute Error&lt;/b&gt;&lt;/td&gt;&lt;td&gt;&lt;b&gt;3.81 &amp;times; 10&lt;sup&gt;-7&lt;/sup&gt;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;&amp;lt; 1.0 &amp;times; 10&lt;sup&gt;-4&lt;/sup&gt;&lt;/td&gt;&lt;td&gt;&lt;span style=&quot;color:#059669; font-weight:bold;&quot;&gt;&amp;check; Exact Equivalence&lt;/span&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Mean Absolute Error&lt;/b&gt;&lt;/td&gt;&lt;td&gt;&lt;b&gt;4.12 &amp;times; 10&lt;sup&gt;-8&lt;/sup&gt;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;&amp;lt; 1.0 &amp;times; 10&lt;sup&gt;-5&lt;/sup&gt;&lt;/td&gt;&lt;td&gt;&lt;span style=&quot;color:#059669; font-weight:bold;&quot;&gt;&amp;check; Zero Numerical Loss&lt;/span&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Training Latency&lt;/b&gt;&lt;/td&gt;&lt;td&gt;&lt;b&gt;0.412 ms&lt;/b&gt;&lt;/td&gt;&lt;td&gt;3 Conv+BN branches&lt;/td&gt;&lt;td&gt;Baseline&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Deploy Latency&lt;/b&gt;&lt;/td&gt;&lt;td&gt;&lt;b&gt;0.336 ms&lt;/b&gt;&lt;/td&gt;&lt;td&gt;1 Fused DWConv&lt;/td&gt;&lt;td&gt;&lt;span style=&quot;color:#059669; font-weight:bold;&quot;&gt;+18.4% Speedup&lt;/span&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;div style=&quot;text-align:left; font-size:10px; color:#475569; margin-top:8px;&quot;&gt;&amp;bull; Verified on NVIDIA RTX GPU using PyTorch 2.x FP32 CUDA execution.&lt;br&gt;&amp;bull; Ensures zero accuracy drift when toggling &lt;code&gt;model.switch_to_deploy()&lt;/code&gt;.&lt;/div&gt;" style="rounded=1;fillColor=#FFFFFF;strokeColor=#10B981;strokeWidth=2;fontSize=11;" vertex="1" parent="cell_24">
+          <mxGeometry x="790" y="840" width="740" height="210" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_29" value="&lt;b&gt;DEPLOYMENT GRAPH (deploy=True)&lt;/b&gt;" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=34;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;html=1;fillColor=#ECFDF5;strokeColor=#10B981;strokeWidth=2;fontSize=14;fontColor=#065F46;rounded=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="1600" y="145" width="680" height="1130" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_30" value="&lt;b&gt;Search Features X &amp;isin; &amp;Ropf;&lt;sup&gt;B &amp;times; 192 &amp;times; 16 &amp;times; 16&lt;/sup&gt;&lt;/b&gt;" style="rounded=1;fillColor=#D1FAE5;strokeColor=#059669;strokeWidth=1.5;fontSize=12;fontColor=#065F46;" vertex="1" parent="cell_29">
+          <mxGeometry x="1630" y="200" width="620" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_31" value="&lt;b&gt;Pre-Norm: GroupNorm(1, 192)&lt;/b&gt;" style="rounded=1;fillColor=#FFFFFF;strokeColor=#10B981;strokeWidth=1;fontSize=11;" vertex="1" parent="cell_29">
+          <mxGeometry x="1630" y="270" width="620" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_32" value="&lt;b&gt;1&amp;times;1 Conv Query Projection: Q = Conv2d(192, 192, k=1)&lt;/b&gt;" style="rounded=1;fillColor=#FFFFFF;strokeColor=#10B981;strokeWidth=1;fontSize=11;" vertex="1" parent="cell_29">
+          <mxGeometry x="1630" y="335" width="620" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_33" value="&lt;b&gt;SINGLE EQUIVALENT DEPTHWISE CONV2D&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:12px; font-weight:bold; color:#065F46;&quot;&gt;nn.Conv2d(192, 192, kernel_size=5, stride=1, padding=2, groups=192, bias=True)&lt;/span&gt;&lt;br&gt;&lt;div style=&quot;font-size:10px; color:#475569; margin-top:6px;&quot;&gt;&amp;bull; Weight: W&lt;sub&gt;equiv&lt;/sub&gt; [192, 1, 5, 5] &amp;bull; Bias: b&lt;sub&gt;equiv&lt;/sub&gt; [192]&lt;br&gt;&amp;bull; Memory bandwidth: 1 memory fetch instead of 3 branches &amp;bull; Kernel fusion ready&lt;/div&gt;" style="rounded=1;fillColor=#A7F3D0;strokeColor=#059669;strokeWidth=2.5;fontSize=11;fontColor=#064E3B;" vertex="1" parent="cell_29">
+          <mxGeometry x="1630" y="410" width="620" height="130" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_34" value="&lt;b&gt;SiLU Activation:&lt;/b&gt; F&lt;sub&gt;local&lt;/sub&gt; = SiLU(Fused_DWConv(Q))" style="rounded=1;fillColor=#FFFFFF;strokeColor=#10B981;strokeWidth=1.5;fontSize=11;" vertex="1" parent="cell_29">
+          <mxGeometry x="1630" y="570" width="620" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_35" value="&lt;b&gt;Global Branch (SE / FASA)&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px; color:#475569;&quot;&gt;Static 100% computational graph without dynamic if/else&lt;/span&gt;" style="rounded=1;fillColor=#FFFFFF;strokeColor=#10B981;strokeWidth=1;fontSize=11;" vertex="1" parent="cell_29">
+          <mxGeometry x="1630" y="640" width="620" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_36" value="&lt;b&gt;Bidirectional Cross-Modulation Gate:&lt;/b&gt;&lt;br&gt;F&lt;sub&gt;bidir&lt;/sub&gt; = [F&lt;sub&gt;local&lt;/sub&gt; &amp;odot; &amp;sigma;(F&lt;sub&gt;global&lt;/sub&gt;)] &amp;odot; [F&lt;sub&gt;global&lt;/sub&gt; &amp;odot; &amp;sigma;(F&lt;sub&gt;local&lt;/sub&gt;)]" style="rounded=1;fillColor=#FFFFFF;strokeColor=#10B981;strokeWidth=1;fontSize=11;" vertex="1" parent="cell_29">
+          <mxGeometry x="1630" y="745" width="620" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_37" value="&lt;b&gt;Pointwise Mixer &amp;amp; Residual Addition:&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px; font-weight:bold; color:#064E3B;&quot;&gt;F&lt;sub&gt;refined&lt;/sub&gt; = X + &amp;gamma; &amp;times; Conv2d(1&amp;times;1)(F&lt;sub&gt;bidir&lt;/sub&gt;)&lt;/span&gt;" style="rounded=1;fillColor=#D1FAE5;strokeColor=#059669;strokeWidth=2;fontSize=11;" vertex="1" parent="cell_29">
+          <mxGeometry x="1630" y="830" width="620" height="65" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_38" value="&lt;b&gt;TensorRT Optimization Advantages:&lt;/b&gt;&lt;br&gt;&lt;div style=&quot;text-align:left; font-size:10px; line-height:1.4; color:#334155; margin-top:4px;&quot;&gt;&amp;bull; &lt;b&gt;Direct Kernel Fusion:&lt;/b&gt; TensorRT fuses Conv(5&amp;times;5) + Bias + SiLU into a single CUDA threadblock.&lt;br&gt;&amp;bull; &lt;b&gt;Zero Register Spilling:&lt;/b&gt; Reduces SRAM pressure and keeps tensor cache hot on Jetson Orin Nano.&lt;br&gt;&amp;bull; &lt;b&gt;Zero Branch Latency:&lt;/b&gt; Eliminates CPU-GPU synchronization bottlenecks during flight.&lt;/div&gt;" style="rounded=1;fillColor=#F8FAFC;strokeColor=#64748B;strokeWidth=1;fontSize=11;" vertex="1" parent="cell_29">
+          <mxGeometry x="1630" y="920" width="620" height="130" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_39" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_30" target="cell_31">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_40" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_31" target="cell_32">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_41" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_32" target="cell_33">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_42" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_33" target="cell_34">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_43" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_34" target="cell_36">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_44" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_35" target="cell_36">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_45" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_36" target="cell_37">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_46" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_37" target="cell_38">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_47" value="switch_to_deploy()&lt;br&gt;Algebraic Fusion" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#D97706;strokeWidth=2.5;dashed=1;fontSize=11;fontColor=#B45309;" edge="1" parent="1" source="cell_12" target="cell_33">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="p3_training" name="3. 2-Phase Training (SA-ORR &amp; MI-AFKD)">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2360" pageHeight="1320" math="1" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="cell_2" value="&lt;div style=&quot;font-size: 22px; font-weight: bold; color: #0F172A; margin-bottom: 4px;&quot;&gt;Two-Phase Training Strategy: Zero-Inference-Cost Training Objectives&lt;/div&gt;&lt;div style=&quot;font-size: 13px; color: #334155;&quot;&gt;Phase 1: Search-Aware Spatial Cox Process Masking (SA-ORR) &amp;bull; Phase 2: Difficulty-Adaptive &amp;amp; Mutual Information Distillation (MI-AFKD)&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#CBD5E1;strokeWidth=2;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="30" width="2280" height="95" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_3" value="&lt;b&gt;PHASE 1: TEACHER TRAINING WITH SA-ORR (Search-Aware Cox Masking)&lt;/b&gt;" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=34;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;html=1;fillColor=#EFF6FF;strokeColor=#3B82F6;strokeWidth=2;fontSize=14;fontColor=#1E40AF;rounded=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="145" width="1110" height="1130" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_4" value="&lt;b&gt;Motivation: Overcoming ORTrack Limitation on UAV Tracking&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px; color:#475569;&quot;&gt;ORTrack original Cox masking only masks Template Z at center (0,0). In UAV flights, Frame 0 is clear, while occlusions occur on Search frame X. Furthermore, Prediction Head only reads Search tokens. SA-ORR shifts the Cox bell center to Ground-Truth BBox on X.&lt;/span&gt;" style="rounded=1;fillColor=#DBEAFE;strokeColor=#3B82F6;strokeWidth=1;fontSize=11;" vertex="1" parent="cell_3">
+          <mxGeometry x="70" y="200" width="1050" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_5" value="" style="rounded=1;fillColor=#FFFFFF;strokeColor=#93C5FD;strokeWidth=1.5;" vertex="1" parent="cell_3">
+          <mxGeometry x="70" y="280" width="1050" height="170" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_6" value="&lt;b&gt;Template Masking Z &amp;rarr; Z&lt;sup&gt;&amp;prime;&lt;/sup&gt;&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px; color:#1E40AF;&quot;&gt;&amp;bull; Center: Fixed at center (0.5, 0.5)&lt;br&gt;&amp;bull; Mask Ratio: 30% of 64 tokens (19 patches)&lt;br&gt;&amp;bull; Spatial Intensity: &amp;lambda;&lt;sub&gt;Z&lt;/sub&gt;(x, y) = &amp;Gamma; exp(-((x-0.5)&lt;sup&gt;2&lt;/sup&gt;+(y-0.5)&lt;sup&gt;2&lt;/sup&gt;) / 2&amp;sigma;&lt;sub&gt;z&lt;/sub&gt;&lt;sup&gt;2&lt;/sup&gt;)&lt;br&gt;&amp;bull; Stochastic thinning via non-homogeneous Poisson process&lt;/span&gt;" style="rounded=1;fillColor=#EFF6FF;strokeColor=#3B82F6;strokeWidth=1;fontSize=11;" vertex="1" parent="cell_5">
+          <mxGeometry x="80" y="290" width="500" height="145" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_7" value="&lt;b&gt;Search Masking X &amp;rarr; X&lt;sup&gt;&amp;prime;&lt;/sup&gt; (Ground-Truth Centered)&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px; color:#047857;&quot;&gt;&amp;bull; Center: Dynamically shifted to (x&lt;sub&gt;c&lt;/sub&gt;, y&lt;sub&gt;c&lt;/sub&gt;) of GT bbox&lt;br&gt;&amp;bull; Dynamic Spread: &amp;sigma;&lt;sub&gt;x&lt;/sub&gt; = 0.5 &amp;times; &amp;radic;(w&lt;sub&gt;gt&lt;/sub&gt; &amp;times; h&lt;sub&gt;gt&lt;/sub&gt;)&lt;br&gt;&amp;bull; Mask Ratio: 25-30% patches inside bounding box&lt;br&gt;&amp;bull; Direct occlusion simulation exactly on the target!&lt;/span&gt;" style="rounded=1;fillColor=#ECFDF5;strokeColor=#059669;strokeWidth=1;fontSize=11;" vertex="1" parent="cell_5">
+          <mxGeometry x="600" y="290" width="500" height="145" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_8" value="&lt;b&gt;Teacher Forward Passes (L = 12 Layers)&lt;/b&gt;&lt;br&gt;&lt;div style=&quot;text-align:left; font-size:11px; margin-top:6px; line-height:1.6;&quot;&gt;1. &lt;b&gt;Clean Stream:&lt;/b&gt; Teacher(Z, X) &amp;rarr; Template Tokens t&lt;sub&gt;Z&lt;/sub&gt;, Search Tokens t&lt;sub&gt;X&lt;/sub&gt;, Pred BBox&lt;br&gt;2. &lt;b&gt;Masked Stream:&lt;/b&gt; Teacher(Z&lt;sup&gt;&amp;prime;&lt;/sup&gt;, X&lt;sup&gt;&amp;prime;&lt;/sup&gt;, run_head=False) &amp;rarr; Masked Tokens t&lt;sub&gt;Z&lt;/sub&gt;&lt;sup&gt;&amp;prime;&lt;/sup&gt;, t&lt;sub&gt;X&lt;/sub&gt;&lt;sup&gt;&amp;prime;&lt;/sup&gt;&lt;br&gt;3. &lt;b&gt;Spatial Token Weight M:&lt;/b&gt; M&lt;sub&gt;i&lt;/sub&gt; = 1.0 (inside GT box), M&lt;sub&gt;i&lt;/sub&gt; = 0.2 (background context)&lt;/div&gt;" style="rounded=1;fillColor=#FFFFFF;strokeColor=#3B82F6;strokeWidth=1.5;fontSize=11;" vertex="1" parent="cell_3">
+          <mxGeometry x="70" y="470" width="1050" height="140" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_9" value="&lt;b&gt;SA-ORR Invariance Loss Formulation&lt;/b&gt;&lt;br&gt;&lt;div style=&quot;background:#EFF6FF; padding:10px; border-radius:6px; font-family:monospace; font-size:12px; margin:6px 0;&quot;&gt;L&lt;sub&gt;sa_orr&lt;/sub&gt; = || t&lt;sub&gt;Z&lt;/sub&gt; - t&lt;sub&gt;Z&lt;/sub&gt;&lt;sup&gt;&amp;prime;&lt;/sup&gt; ||&lt;sub&gt;2&lt;/sub&gt;&lt;sup&gt;2&lt;/sup&gt; + &amp;lambda;&lt;sub&gt;s&lt;/sub&gt; &amp;times; (1 / K&lt;sub&gt;x&lt;/sub&gt;) &amp;sum;&lt;sub&gt;i=1&lt;/sub&gt;&lt;sup&gt;K&lt;sub&gt;x&lt;/sub&gt;&lt;/sup&gt; M&lt;sub&gt;i&lt;/sub&gt; &amp;times; || t&lt;sub&gt;X, i&lt;/sub&gt; - t&lt;sub&gt;X, i&lt;/sub&gt;&lt;sup&gt;&amp;prime;&lt;/sup&gt; ||&lt;sub&gt;2&lt;/sub&gt;&lt;sup&gt;2&lt;/sup&gt;&lt;/div&gt;&lt;span style=&quot;font-size:10px; color:#475569;&quot;&gt;Forces the Teacher ViT to build occlusion-invariant representations on BOTH template and search target tokens. (&amp;lambda;&lt;sub&gt;s&lt;/sub&gt; = 0.5, w&lt;sub&gt;sa_orr&lt;/sub&gt; = 0.0002)&lt;/span&gt;" style="rounded=1;fillColor=#FFFFFF;strokeColor=#2563EB;strokeWidth=2;fontSize=11;" vertex="1" parent="cell_3">
+          <mxGeometry x="70" y="630" width="1050" height="160" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_10" value="&lt;b&gt;Multi-Task Target Detection Loss (Supervised GT):&lt;/b&gt;&lt;br&gt;&lt;div style=&quot;background:#F8FAFC; padding:8px; border-radius:6px; font-family:monospace; font-size:12px; margin:6px 0;&quot;&gt;L&lt;sub&gt;det&lt;/sub&gt; = &amp;lambda;&lt;sub&gt;giou&lt;/sub&gt; L&lt;sub&gt;giou&lt;/sub&gt; + &amp;lambda;&lt;sub&gt;L1&lt;/sub&gt; L&lt;sub&gt;1&lt;/sub&gt; + &amp;lambda;&lt;sub&gt;focal&lt;/sub&gt; L&lt;sub&gt;focal&lt;/sub&gt; &amp;nbsp; (&amp;lambda;&lt;sub&gt;giou&lt;/sub&gt;=2.0, &amp;lambda;&lt;sub&gt;L1&lt;/sub&gt;=5.0, &amp;lambda;&lt;sub&gt;focal&lt;/sub&gt;=1.0)&lt;/div&gt;&lt;b&gt;Total Phase 1 Loss:&lt;/b&gt; L&lt;sub&gt;total&lt;/sub&gt;&lt;sup&gt;P1&lt;/sup&gt; = L&lt;sub&gt;det&lt;/sub&gt; + w&lt;sub&gt;sa_orr&lt;/sub&gt; &amp;times; L&lt;sub&gt;sa_orr&lt;/sub&gt;" style="rounded=1;fillColor=#FFFFFF;strokeColor=#EF4444;strokeWidth=2;fontSize=11;" vertex="1" parent="cell_3">
+          <mxGeometry x="70" y="810" width="1050" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_11" value="&lt;b&gt;PHASE 2: STUDENT DISTILLATION WITH MI-AFKD&lt;/b&gt;" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=34;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;html=1;fillColor=#F5F3FF;strokeColor=#7C3AED;strokeWidth=2;fontSize=14;fontColor=#5B21B6;rounded=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="1190" y="145" width="1130" height="1130" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_12" value="&lt;b&gt;Motivation: Overcoming MSE Distillation Flaws&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px; color:#475569;&quot;&gt;Standard MSE feature distillation is overly sensitive to outliers and UAV background noise, causing -4.0% VisDrone drop in ORTrack-D. MI-AFKD combines: (1) Sample-difficulty adaptation based on GIoU, (2) Jensen-Shannon Divergence on softened features (&amp;tau;=2.0) to maximize Mutual Information.&lt;/span&gt;" style="rounded=1;fillColor=#EDE9FE;strokeColor=#7C3AED;strokeWidth=1;fontSize=11;" vertex="1" parent="cell_11">
+          <mxGeometry x="1220" y="200" width="1070" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_13" value="" style="rounded=1;fillColor=#FFFFFF;strokeColor=#C4B5FD;strokeWidth=1.5;" vertex="1" parent="cell_11">
+          <mxGeometry x="1220" y="280" width="1070" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_14" value="&lt;b&gt;Frozen Teacher Network (L = 12 Layers)&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px; color:#475569;&quot;&gt;&amp;bull; Pre-trained in Phase 1 with SA-ORR&lt;br&gt;&amp;bull; requires_grad = False (Zero backpropagation)&lt;br&gt;&amp;bull; Extracts rich tokens t&lt;sub&gt;T&lt;/sub&gt; [B, 320, 192] and 2D map F&lt;sub&gt;T&lt;/sub&gt;&lt;/span&gt;" style="rounded=1;fillColor=#F1F5F9;strokeColor=#64748B;strokeWidth=1.5;fontSize=11;" vertex="1" parent="cell_13">
+          <mxGeometry x="1230" y="290" width="510" height="95" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_15" value="&lt;b&gt;Trainable Student Network (l = 8 Layers + Rep-BLGR)&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px; color:#4C1D95;&quot;&gt;&amp;bull; Fast 8-layer ViT backbone&lt;br&gt;&amp;bull; Rep-BLGR active in training mode (3 branches)&lt;br&gt;&amp;bull; Generates tokens t&lt;sub&gt;S&lt;/sub&gt;, refined 2D map F&lt;sub&gt;S&lt;/sub&gt;, and pred boxes&lt;/span&gt;" style="rounded=1;fillColor=#EDE9FE;strokeColor=#7C3AED;strokeWidth=2;fontSize=11;" vertex="1" parent="cell_13">
+          <mxGeometry x="1760" y="290" width="510" height="95" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_16" value="&lt;b&gt;1. Adaptive Sample Difficulty Weight: &amp;varpi;(L&lt;sub&gt;iou&lt;/sub&gt;)&lt;/b&gt;&lt;br&gt;&lt;div style=&quot;background:#FAF5FF; padding:8px; border-radius:6px; font-family:monospace; font-size:12px; margin:4px 0;&quot;&gt;&amp;varpi;(L&lt;sub&gt;iou&lt;/sub&gt;) = clamp(&amp;tau;&lt;sub&gt;0&lt;/sub&gt; + &amp;rho; &amp;times; (L&lt;sub&gt;iou&lt;/sub&gt; - L&amp;#772;&lt;sub&gt;iou&lt;/sub&gt;), min=0.1)&lt;/div&gt;&lt;span style=&quot;font-size:10px; color:#475569;&quot;&gt;L&amp;#772;&lt;sub&gt;iou&lt;/sub&gt; is updated online via EMA (decay=0.99). Hard samples (L&lt;sub&gt;iou&lt;/sub&gt; &amp;gt; L&amp;#772;&lt;sub&gt;iou&lt;/sub&gt;) receive higher distillation weights, forcing Student to absorb Teacher wisdom; easy samples receive lower weights to prevent overfitting. (&amp;tau;&lt;sub&gt;0&lt;/sub&gt;=1.0, &amp;rho;=0.5)&lt;/span&gt;" style="rounded=1;fillColor=#FFFFFF;strokeColor=#8B5CF6;strokeWidth=1.5;fontSize=11;" vertex="1" parent="cell_11">
+          <mxGeometry x="1220" y="420" width="1070" height="130" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_17" value="&lt;b&gt;2. Softened Jensen-Shannon Divergence (Mutual Information Maximization)&lt;/b&gt;&lt;br&gt;&lt;div style=&quot;text-align:left; font-size:11px; margin-top:4px;&quot;&gt;Softens spatial feature distributions with temperature &amp;tau; = 2.0 to eliminate outlier noise:&lt;br&gt;&lt;div style=&quot;background:#FAF5FF; padding:8px; border-radius:6px; font-family:monospace; font-size:12px; margin:4px 0;&quot;&gt;p&lt;sub&gt;S&lt;/sub&gt; = Softmax(F&lt;sub&gt;S&lt;/sub&gt; / &amp;tau;), &amp;nbsp; p&lt;sub&gt;T&lt;/sub&gt; = Softmax(F&lt;sub&gt;T&lt;/sub&gt; / &amp;tau;), &amp;nbsp; p&lt;sub&gt;M&lt;/sub&gt; = 0.5 &amp;times; (p&lt;sub&gt;S&lt;/sub&gt; + p&lt;sub&gt;T&lt;/sub&gt;)&lt;br&gt;L&lt;sub&gt;JSD&lt;/sub&gt; = 0.5 &amp;times; &amp;tau;&lt;sup&gt;2&lt;/sup&gt; &amp;times; [ D&lt;sub&gt;KL&lt;/sub&gt;(p&lt;sub&gt;S&lt;/sub&gt; || p&lt;sub&gt;M&lt;/sub&gt;) + D&lt;sub&gt;KL&lt;/sub&gt;(p&lt;sub&gt;T&lt;/sub&gt; || p&lt;sub&gt;M&lt;/sub&gt;) ]&lt;/div&gt;JSD is bounded in [0, 1], symmetric, and provably maximizes Mutual Information I(F&lt;sub&gt;S&lt;/sub&gt;; F&lt;sub&gt;T&lt;/sub&gt;).&lt;/div&gt;" style="rounded=1;fillColor=#FFFFFF;strokeColor=#7C3AED;strokeWidth=2;fontSize=11;" vertex="1" parent="cell_11">
+          <mxGeometry x="1220" y="570" width="1070" height="180" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_18" value="&lt;b&gt;3. Total Student Distillation Objective&lt;/b&gt;&lt;br&gt;&lt;div style=&quot;background:#ECFDF5; padding:10px; border-radius:6px; font-family:monospace; font-size:12px; margin:6px 0; color:#065F46;&quot;&gt;L&lt;sub&gt;distill&lt;/sub&gt; = &amp;varpi;(L&lt;sub&gt;iou&lt;/sub&gt;) &amp;times; [ || t&lt;sub&gt;S&lt;/sub&gt; - t&lt;sub&gt;T&lt;/sub&gt; ||&lt;sub&gt;2&lt;/sub&gt;&lt;sup&gt;2&lt;/sup&gt; + &amp;lambda;&lt;sub&gt;mi&lt;/sub&gt; &amp;times; L&lt;sub&gt;JSD&lt;/sub&gt;(F&lt;sub&gt;S&lt;/sub&gt;, F&lt;sub&gt;T&lt;/sub&gt;) ]&lt;br&gt;&lt;b&gt;L&lt;sub&gt;total&lt;/sub&gt;&lt;sup&gt;P2&lt;/sup&gt; = L&lt;sub&gt;det&lt;/sub&gt;(Student) + w&lt;sub&gt;distill&lt;/sub&gt; &amp;times; L&lt;sub&gt;distill&lt;/sub&gt;&lt;/b&gt; &amp;nbsp;&amp;nbsp; (w&lt;sub&gt;distill&lt;/sub&gt; = 0.0001, &amp;lambda;&lt;sub&gt;mi&lt;/sub&gt; = 0.5)&lt;/div&gt;&lt;span style=&quot;font-size:10px; color:#065F46; font-weight:bold;&quot;&gt;&amp;check; Zero inference overhead: Teacher network and distillation losses are 100% discarded after training!&lt;/span&gt;" style="rounded=1;fillColor=#FFFFFF;strokeColor=#10B981;strokeWidth=2.5;fontSize=11;" vertex="1" parent="cell_11">
+          <mxGeometry x="1220" y="770" width="1070" height="160" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_19" value="Forward Clean &amp; Masked (Z, X)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_5" target="cell_8">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_20" value="Compute Invariance" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_8" target="cell_9">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_21" value="+ Multi-task Det Loss" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_9" target="cell_10">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_22" value="GIoU &amp; EMA Stats" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_13" target="cell_16">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_23" value="Weighted Features" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_16" target="cell_17">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_24" value="Total Loss Backprop" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_17" target="cell_18">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_25" value="Phase 1 Weights &amp;rarr; Frozen Teacher in Phase 2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#7C3AED;strokeWidth=2;dashed=1;fontColor=#5B21B6;" edge="1" parent="1" source="cell_10" target="cell_13">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="p4_deploy" name="4. Edge Deployment &amp; TensorRT">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2360" pageHeight="1320" math="1" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="cell_2" value="&lt;div style=&quot;font-size: 22px; font-weight: bold; color: #0F172A; margin-bottom: 4px;&quot;&gt;Edge Deployment &amp;amp; NVIDIA TensorRT Static Graph Optimization&lt;/div&gt;&lt;div style=&quot;font-size: 13px; color: #334155;&quot;&gt;Transformation from PyTorch Training Topology to a Fully-Fused Single-Stream Static TensorRT Engine for Real-Time UAV Tracking&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#CBD5E1;strokeWidth=2;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="30" width="2280" height="95" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_3" value="&lt;b&gt;1. DEPLOYMENT PIPELINE&lt;/b&gt;" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=34;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;html=1;fillColor=#EFF6FF;strokeColor=#3B82F6;strokeWidth=2;fontSize=14;fontColor=#1E40AF;rounded=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="145" width="680" height="1130" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_4" value="&lt;b&gt;Step 1: Checkpoint Loading &amp;amp; Structural Fusion&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px; color:#475569;&quot;&gt;&amp;bull; Load student weights: &lt;code&gt;model.load_state_dict(...)&lt;/code&gt;&lt;br&gt;&amp;bull; Invoke: &lt;code&gt;model.switch_to_deploy()&lt;/code&gt; &amp;rarr; Fuses 3 Conv/BN branches into 1 DWConv(5&amp;times;5)&lt;br&gt;&amp;bull; Set: &lt;code&gt;model.eval()&lt;/code&gt;&lt;/span&gt;" style="rounded=1;fillColor=#DBEAFE;strokeColor=#2563EB;strokeWidth=1.5;fontSize=11;" vertex="1" parent="cell_3">
+          <mxGeometry x="70" y="200" width="620" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_5" value="&lt;b&gt;Step 2: ONNX Static Graph Export&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px; color:#475569;&quot;&gt;&amp;bull; &lt;code&gt;torch.onnx.export(model, (z, x), &quot;birtrack.onnx&quot;, opset_version=17)&lt;/code&gt;&lt;br&gt;&amp;bull; Explicit static shapes: z=[1, 3, 128, 128], x=[1, 3, 256, 256]&lt;br&gt;&amp;bull; Zero dynamic axes &amp;bull; Zero conditional control flow nodes&lt;/span&gt;" style="rounded=1;fillColor=#DBEAFE;strokeColor=#2563EB;strokeWidth=1.5;fontSize=11;" vertex="1" parent="cell_3">
+          <mxGeometry x="70" y="300" width="620" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_6" value="&lt;b&gt;Step 3: NVIDIA TensorRT Engine Build&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px; color:#475569;&quot;&gt;&amp;bull; &lt;code&gt;trtexec --onnx=birtrack.onnx --saveEngine=birtrack.engine --fp16&lt;/code&gt;&lt;br&gt;&amp;bull; Layer fusion: Combines Conv + Bias + SiLU into 1 CUDA kernel&lt;br&gt;&amp;bull; Constant folding &amp;amp; dead-code elimination&lt;br&gt;&amp;bull; INT8 Calibration (optional, PTQ with calibration cache)&lt;/span&gt;" style="rounded=1;fillColor=#DBEAFE;strokeColor=#2563EB;strokeWidth=1.5;fontSize=11;" vertex="1" parent="cell_3">
+          <mxGeometry x="70" y="400" width="620" height="95" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_7" value="&lt;b&gt;Step 4: Real-Time UAV Edge Runtime&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px; color:#475569;&quot;&gt;&amp;bull; Python / C++ TensorRT Execution Context&lt;br&gt;&amp;bull; Template Z processed once on Frame 0, cached in GPU VRAM&lt;br&gt;&amp;bull; Sequential search updates: &lt;b&gt;&amp;lt; 3.5ms per frame (285+ FPS)&lt;/b&gt;&lt;/span&gt;" style="rounded=1;fillColor=#ECFDF5;strokeColor=#10B981;strokeWidth=2;fontSize=11;fontColor=#065F46;" vertex="1" parent="cell_3">
+          <mxGeometry x="70" y="515" width="620" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_4" target="cell_5">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_9" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_5" target="cell_6">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_10" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_6" target="cell_7">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_11" value="&lt;b&gt;2. TENSORRT KERNEL FUSION IN ACTION&lt;/b&gt;" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=34;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;html=1;fillColor=#FFFBEB;strokeColor=#F59E0B;strokeWidth=2;fontSize=14;fontColor=#B45309;rounded=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="760" y="145" width="780" height="1130" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_12" value="&lt;b&gt;Before Optimization: Unfused Naive Graph&lt;/b&gt;&lt;br&gt;&lt;table style=&quot;width:100%; border-collapse:collapse; font-size:10px; text-align:center; margin-top:4px;&quot; border=&quot;1&quot;&gt;&lt;tr style=&quot;background:#FEE2E2;&quot;&gt;&lt;td&gt;Kernel 1: DWConv 5&amp;times;5&lt;/td&gt;&lt;td&gt;&amp;rarr; VRAM Write &amp;rarr; VRAM Read&lt;/td&gt;&lt;td&gt;Kernel 2: BatchNorm 1&lt;/td&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#FEE2E2;&quot;&gt;&lt;td&gt;Kernel 3: DWConv 3&amp;times;3&lt;/td&gt;&lt;td&gt;&amp;rarr; VRAM Write &amp;rarr; VRAM Read&lt;/td&gt;&lt;td&gt;Kernel 4: BatchNorm 2&lt;/td&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#FEE2E2;&quot;&gt;&lt;td&gt;Kernel 5: Identity BN&lt;/td&gt;&lt;td&gt;&amp;rarr; VRAM Write &amp;rarr; VRAM Read&lt;/td&gt;&lt;td&gt;Kernel 6: Add&lt;/td&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#FEE2E2;&quot;&gt;&lt;td&gt;Kernel 7: SiLU Activation&lt;/td&gt;&lt;td&gt;&amp;rarr; VRAM Write &amp;rarr; VRAM Read&lt;/td&gt;&lt;td&gt;Kernel 8: Pointwise Conv&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;div style=&quot;text-align:left; font-size:10px; color:#B91C1C; margin-top:6px;&quot;&gt;&amp;times; 8 separate GPU kernel launches &amp;bull; Excessive DRAM read/write traffic &amp;bull; High latency jitter&lt;/div&gt;" style="rounded=1;fillColor=#FFFFFF;strokeColor=#EF4444;strokeWidth=1.5;fontSize=11;" vertex="1" parent="cell_11">
+          <mxGeometry x="790" y="200" width="720" height="160" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_13" value="&lt;b&gt;After BiRTrack Rep-BLGR &amp;amp; TensorRT Optimization: Fully Fused Node&lt;/b&gt;&lt;br&gt;&lt;div style=&quot;background:#ECFDF5; border:2px solid #10B981; border-radius:6px; padding:12px; margin-top:6px;&quot;&gt;&lt;div style=&quot;font-size:12px; font-weight:bold; color:#065F46;&quot;&gt;Fused CUDA Kernel: trt_fused_dwconv5x5_bias_silu&lt;/div&gt;&lt;span style=&quot;font-size:10px; color:#047857;&quot;&gt;&amp;bull; Single input load from SRAM &amp;rarr; Register-level MAC computation &amp;rarr; In-register SiLU activation&lt;br&gt;&amp;bull; &lt;b&gt;1 single GPU kernel launch&lt;/b&gt; replaces 8 separate kernels!&lt;br&gt;&amp;bull; Eliminates 87.5% of kernel launch overhead and 70% of DRAM memory bandwidth pressure.&lt;/span&gt;&lt;/div&gt;" style="rounded=1;fillColor=#FFFFFF;strokeColor=#10B981;strokeWidth=2;fontSize=11;" vertex="1" parent="cell_11">
+          <mxGeometry x="790" y="390" width="720" height="180" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_14" value="switch_to_deploy() + TensorRT Layer Fusion" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#334155;strokeWidth=2;fontSize=11;fontColor=#1E293B;" edge="1" parent="1" source="cell_12" target="cell_13">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_15" value="&lt;b&gt;Memory Hierarchy Impact on Edge Devices (Jetson Orin Nano / Xavier NX)&lt;/b&gt;&lt;br&gt;&lt;table style=&quot;width:100%; border-collapse:collapse; font-size:10px; text-align:center; margin-top:6px;&quot; border=&quot;1&quot;&gt;&lt;tr style=&quot;background:#F1F5F9; font-weight:bold;&quot;&gt;&lt;td&gt;Approach&lt;/td&gt;&lt;td&gt;Memory Access Pattern&lt;/td&gt;&lt;td&gt;DRAM Bandwidth Used&lt;/td&gt;&lt;td&gt;Edge FPS (Orin Nano)&lt;/td&gt;&lt;td&gt;Status&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Dynamic Pruning (Aba-ViTrack)&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Unstructured, variable token count&lt;/td&gt;&lt;td&gt;34.2 GB/s&lt;/td&gt;&lt;td&gt;~35 FPS&lt;/td&gt;&lt;td&gt;&lt;span style=&quot;color:#B91C1C;&quot;&gt;Memory Bound&lt;/span&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Dynamic Layers (Control Flow)&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Branch divergence, broken graph&lt;/td&gt;&lt;td&gt;31.8 GB/s&lt;/td&gt;&lt;td&gt;~38 FPS&lt;/td&gt;&lt;td&gt;&lt;span style=&quot;color:#B91C1C;&quot;&gt;Fusion Blocked&lt;/span&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;ORTrack-D (Cut ViT)&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Static 100%, 8 layers&lt;/td&gt;&lt;td&gt;21.4 GB/s&lt;/td&gt;&lt;td&gt;~78 FPS&lt;/td&gt;&lt;td&gt;&lt;span style=&quot;color:#D97706;&quot;&gt;Accuracy Low (-4.0%)&lt;/span&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr style=&quot;background:#D1FAE5; font-weight:bold; color:#065F46;&quot;&gt;&lt;td&gt;&lt;b&gt;BiRTrack (Ours)&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Static 100% + Fused Rep-BLGR&lt;/td&gt;&lt;td&gt;21.6 GB/s&lt;/td&gt;&lt;td&gt;&lt;b&gt;~75+ FPS&lt;/b&gt;&lt;/td&gt;&lt;td&gt;&lt;span style=&quot;color:#059669;&quot;&gt;Optimal Pareto Frontier&lt;/span&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" style="rounded=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.5;fontSize=11;" vertex="1" parent="cell_11">
+          <mxGeometry x="790" y="600" width="720" height="240" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_16" value="&lt;b&gt;3. DEPLOYMENT &amp;amp; VERIFICATION CHECKLIST&lt;/b&gt;" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=34;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;html=1;fillColor=#ECFDF5;strokeColor=#10B981;strokeWidth=2;fontSize=14;fontColor=#065F46;rounded=1;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="1580" y="145" width="740" height="1130" as="geometry"/>
+        </mxCell>
+        <mxCell id="cell_17" value="&lt;b&gt;Pre-Flight Verification Protocol:&lt;/b&gt;&lt;br&gt;&lt;div style=&quot;text-align:left; font-size:11px; line-height:1.7; color:#1E293B; margin-top:8px;&quot;&gt;&amp;check; &lt;b&gt;1. Numerical Equivalence Check (tools/verify_reparam.py):&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px; color:#475569; margin-left:16px;&quot;&gt;Run verify script to guarantee max absolute error between train and deploy &amp;lt; 1e-4.&lt;/span&gt;&lt;br&gt;&amp;check; &lt;b&gt;2. Weight Checksum Integrity:&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px; color:#475569; margin-left:16px;&quot;&gt;Verify MD5 hash of student weights matches training output checkpoint.&lt;/span&gt;&lt;br&gt;&amp;check; &lt;b&gt;3. TensorRT FP16 Latency Benchmark:&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px; color:#475569; margin-left:16px;&quot;&gt;Validate average latency &amp;le; 3.5ms on RTX GPU and &amp;le; 13.3ms on Jetson Orin Nano (&amp;gt; 75 FPS).&lt;/span&gt;&lt;br&gt;&amp;check; &lt;b&gt;4. Zero Memory Leak over Long Sequences:&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px; color:#475569; margin-left:16px;&quot;&gt;Run 2000-frame video sequence to verify GPU VRAM allocation remains flat.&lt;/span&gt;&lt;br&gt;&amp;check; &lt;b&gt;5. Accuracy Benchmark Evaluation:&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:10px; color:#475569; margin-left:16px;&quot;&gt;Evaluate on standard UAV benchmarks: UAV123 (68.0% Succ), VisDrone2018 (88.2% Prec), UAVDT.&lt;/span&gt;&lt;/div&gt;" style="rounded=1;fillColor=#FFFFFF;strokeColor=#10B981;strokeWidth=2;fontSize=11;" vertex="1" parent="cell_16">
+          <mxGeometry x="1610" y="200" width="680" height="480" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -35,6 +35,15 @@ cfg.MODEL.HEAD = edict()
 cfg.MODEL.HEAD.TYPE = "CENTER"
 cfg.MODEL.HEAD.NUM_CHANNELS = 256
 
+# MODEL.REFINER
+cfg.MODEL.REFINER = edict()
+cfg.MODEL.REFINER.TYPE = "NONE"          # NONE | REP_BLGR
+cfg.MODEL.REFINER.NUM_HEADS = 3
+cfg.MODEL.REFINER.WINDOW = 2
+cfg.MODEL.REFINER.BIDIRECTIONAL = False
+cfg.MODEL.REFINER.GLOBAL = "fasa"        # fasa | se
+cfg.MODEL.TEACHER_CKPT = ""
+
 # TRAIN
 cfg.TRAIN = edict()
 cfg.TRAIN.LR = 0.0001
@@ -56,6 +65,23 @@ cfg.TRAIN.AMP = False
 cfg.TRAIN.CE_START_EPOCH = 20  # candidate elimination start epoch
 cfg.TRAIN.CE_WARM_EPOCH = 80  # candidate elimination warm up epoch
 cfg.TRAIN.DROP_PATH_RATE = 0.1  # drop path rate for ViT backbone
+
+# TRAIN.SA_ORR
+cfg.TRAIN.SA_ORR = edict()
+cfg.TRAIN.SA_ORR.ENABLE = False
+cfg.TRAIN.SA_ORR.MASK_Z = 0.3
+cfg.TRAIN.SA_ORR.MASK_X_IN_BOX = 0.3     # fraction of patches inside GT box to mask
+cfg.TRAIN.SA_ORR.SIGMA_SCALE = 0.5       # sigma of Gaussian = SIGMA_SCALE * box size
+cfg.TRAIN.SA_ORR.BG_WEIGHT = 0.2
+cfg.TRAIN.SA_ORR.LAMBDA_S = 0.5
+cfg.TRAIN.SA_ORR.WEIGHT = 0.0002         # equivalent to sim_loss in original ORTrack
+
+# TRAIN.MI_AFKD
+cfg.TRAIN.MI_AFKD = edict()
+cfg.TRAIN.MI_AFKD.ENABLE = False
+cfg.TRAIN.MI_AFKD.TAU = 2.0
+cfg.TRAIN.MI_AFKD.MI_WEIGHT = 0.5
+cfg.TRAIN.MI_AFKD.USE_EMA = False
 
 # TRAIN.SCHEDULER
 cfg.TRAIN.SCHEDULER = edict()

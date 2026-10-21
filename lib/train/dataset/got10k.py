@@ -3,7 +3,6 @@ import os.path
 import numpy as np
 import torch
 import csv
-import pandas
 import random
 from collections import OrderedDict
 from .base_video_dataset import BaseVideoDataset

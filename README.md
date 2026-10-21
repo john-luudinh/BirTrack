@@ -116,3 +116,13 @@ If our work is useful for your research, please consider citing:
 }
 ```
 
+
+# 1. Kích hoạt venv
+.\venv\ortrack_venv\Scripts\activate
+# 2. Chạy kiểm chứng toán học Gate G1
+python tests/test_rep_blgr.py
+python tools/verify_reparam.py
+# 3. Huấn luyện Pha 1 (Teacher với SA-ORR)
+python tracking/train.py --script ortrack --config deit_tiny_teacher_saorr --save_dir ./output/teacher
+# 4. Huấn luyện Pha 2 (Student với Rep-BLGR & MI-AFKD)
+python tracking/train.py --script ortrack --config deit_tiny_student_birtrack --save_dir ./output/student

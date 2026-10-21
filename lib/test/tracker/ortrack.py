@@ -21,6 +21,8 @@ class ORTrack(BaseTracker):
         super(ORTrack, self).__init__(params)
         network = build_ortrack(params.cfg, training=False)
         network.load_state_dict(torch.load(self.params.checkpoint, map_location='cpu')['net'], strict=True)
+        if hasattr(network, "switch_to_deploy"):
+            network.switch_to_deploy()
         self.cfg = params.cfg
         self.network = network.cuda()
         # self.network = network.cpu()
