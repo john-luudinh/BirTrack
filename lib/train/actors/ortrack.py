@@ -46,6 +46,15 @@ class ORTrackActor(BaseActor):
         else:
             self.mi_afkd = None
 
+    def train(self, mode=True):
+        """
+        Giu nguyen student o mode duoc chi dinh (train/eval), nhung LUON LUON
+        bat buoc teacher o mode eval() de dong bang BatchNorm running stats va Dropout.
+        """
+        super().train(mode)
+        if hasattr(self, "net_teacher") and self.net_teacher is not None:
+            self.net_teacher.eval()
+
     def __call__(self, data):
         """
         args:

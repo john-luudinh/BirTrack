@@ -126,3 +126,12 @@ python tools/verify_reparam.py
 python tracking/train.py --script ortrack --config deit_tiny_teacher_saorr --save_dir ./output/teacher
 # 4. Huấn luyện Pha 2 (Student với Rep-BLGR & MI-AFKD)
 python tracking/train.py --script ortrack --config deit_tiny_student_birtrack --save_dir ./output/student
+
+<!-- source /home/ubuntu22/tuld3/tu_workspace/my_venv/birtrack/bin/activate
+cd /home/ubuntu22/tuld3/tu_workspace/track_uav/BirTrack
+
+python tracking/train.py \
+  --script ortrack \
+  --config deit_tiny_student_birtrack_uav_ortrackT \
+  --save_dir ./output/student_uav_ortrackT \
+  --mode single -->

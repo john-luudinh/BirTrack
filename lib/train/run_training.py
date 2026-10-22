@@ -26,7 +26,7 @@ def init_seeds(seed):
 
 def run_training(script_name, config_name, cudnn_benchmark=True, local_rank=-1, save_dir=None, base_seed=None,
                  use_lmdb=False, script_name_prv=None, config_name_prv=None, use_wandb=False,
-                 distill=None, script_teacher=None, config_teacher=None):
+                 distill=None, script_teacher=None, config_teacher=None, teacher_ckpt=None):
     """Run the train script.
     args:
         script_name: Name of emperiment in the "experiments/" folder.
@@ -61,7 +61,8 @@ def run_training(script_name, config_name, cudnn_benchmark=True, local_rank=-1, 
     prj_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
     settings.cfg_file = os.path.join(prj_dir, 'experiments/%s/%s.yaml' % (script_name, config_name))
     settings.use_wandb = use_wandb
-    if distill:
+    settings.teacher_ckpt = teacher_ckpt
+    if distill and script_name != "ortrack":
         settings.distill = distill
         settings.script_teacher = script_teacher
         settings.config_teacher = config_teacher
@@ -92,6 +93,7 @@ def main():
     parser.add_argument('--distill', type=int, choices=[0, 1], default=0)  # whether to use knowledge distillation
     parser.add_argument('--script_teacher', type=str, help='teacher script name')
     parser.add_argument('--config_teacher', type=str, help='teacher yaml configure file name')
+    parser.add_argument('--teacher_ckpt', type=str, default=None, help='path to teacher weights (.zip or .pth/.tar)')
 
     args = parser.parse_args()
 
@@ -104,7 +106,8 @@ def main():
                  local_rank=args.local_rank, save_dir=args.save_dir, base_seed=args.seed,
                  use_lmdb=args.use_lmdb, script_name_prv=args.script_prv, config_name_prv=args.config_prv,
                  use_wandb=args.use_wandb,
-                 distill=args.distill, script_teacher=args.script_teacher, config_teacher=args.config_teacher)
+                 distill=args.distill, script_teacher=args.script_teacher, config_teacher=args.config_teacher,
+                 teacher_ckpt=args.teacher_ckpt)
 
 
 if __name__ == '__main__':

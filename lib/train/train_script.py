@@ -1,4 +1,5 @@
 import os
+import copy
 # loss function related
 from lib.utils.box_ops import giou_loss
 from torch.nn.functional import l1_loss
@@ -54,43 +55,42 @@ def run(settings):
     if settings.script_name == "ortrack":
         # =====distillation====
         is_distill_training = cfg.MODEL['IS_DISTILL']
+        net_teacher = None
         if is_distill_training:
-            cfg_teacher = cfg
-            student_backbone = cfg_teacher.MODEL['BACKBONE']['TYPE']
+            from lib.train.utils.teacher_loader import (
+                resolve_teacher_path,
+                read_checkpoint,
+                load_teacher_weights,
+                freeze_teacher,
+                print_teacher_report,
+            )
+
+            # Dung deepcopy de tach biet hoan toan config cua teacher, tranh lam thay doi config cua student
+            cfg_teacher = copy.deepcopy(cfg)
+            student_backbone = cfg.MODEL['BACKBONE']['TYPE']
             teacher_backbone = student_backbone.replace('_distilled', '')
             cfg_teacher.MODEL['BACKBONE']['TYPE'] = teacher_backbone
 
-            # Teacher should not use student refiner
+            # Teacher khong su dung refiner module cua student (RepBLGR)
             if hasattr(cfg_teacher.MODEL, "REFINER"):
-                saved_refiner_type = cfg_teacher.MODEL.REFINER.TYPE
                 cfg_teacher.MODEL.REFINER.TYPE = "NONE"
-            else:
-                saved_refiner_type = "NONE"
 
             net_teacher = build_ortrack(cfg_teacher)
 
-            # Determine checkpoint path
-            custom_ckpt = getattr(cfg.MODEL, "TEACHER_CKPT", "")
-            if custom_ckpt and os.path.exists(custom_ckpt):
-                teacher_ckpt_path = custom_ckpt
-            else:
-                root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
-                teacher_ckpt_path = os.path.join(root_path, f'teacher_model/{teacher_backbone}/ORTrack_ep0300.pth.tar')
+            # Xac dinh duong dan va load weights cua teacher (ho tro ca .zip lan .pth/.tar)
+            teacher_ckpt_path = resolve_teacher_path(getattr(settings, "teacher_ckpt", None), cfg)
+            checkpoint, meta_info = read_checkpoint(teacher_ckpt_path)
+            report = load_teacher_weights(net_teacher, checkpoint)
+            frozen_params = freeze_teacher(net_teacher)
 
-            print(f'Loading teacher checkpoint from: {teacher_ckpt_path}')
-            checkpoint = torch.load(teacher_ckpt_path, map_location="cpu")
-            net_teacher.load_state_dict(checkpoint["net"], strict=False)
+            if settings.local_rank in [-1, 0]:
+                print_teacher_report(report, meta_info)
+                print(f"[TeacherLoader] Da dong bang {frozen_params:,} tham so cua teacher.")
+
             net_teacher.cuda()
 
-            # Restore student configuration
-            cfg.MODEL['BACKBONE']['TYPE'] = student_backbone
-            if hasattr(cfg.MODEL, "REFINER"):
-                cfg.MODEL.REFINER.TYPE = saved_refiner_type
-
-            net = build_ortrack(cfg)
-
-        else:
-            net = build_ortrack(cfg)
+        # Build model student voi day du refiner va branch distillation
+        net = build_ortrack(cfg)
     else:
         raise ValueError("illegal script name")
 
@@ -98,7 +98,9 @@ def run(settings):
     net.cuda()
     if settings.local_rank != -1:
         # net = torch.nn.SyncBatchNorm.convert_sync_batchnorm(net)  # add syncBN converter
-        net_teacher = DDP(net_teacher, device_ids=[settings.local_rank], find_unused_parameters=True)
+        # Chu y: net_teacher khong co learnable parameters nen KHONG wrap DDP de tranh overhead/sync loi
+        if net_teacher is not None:
+            net_teacher.cuda(settings.local_rank)
         net = DDP(net, device_ids=[settings.local_rank], find_unused_parameters=True)
         settings.device = torch.device("cuda:%d" % settings.local_rank)
     else:

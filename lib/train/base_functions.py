@@ -38,8 +38,8 @@ def names2datasets(name_list: list, settings, image_loader):
     for name in name_list:
         assert name in [
             "LASOT", "GOT10K_vottrain", "GOT10K_votval", "GOT10K_train_full", "GOT10K_official_val",
-            "COCO17", "VID", "TRACKINGNET", "UAV123", "UAV_Anti_UAV", "UAV_Anti_UAV_val",
-            "ANTI300", "ANTI300_val", "ANTI300_IR", "ANTI300_IR_val"
+            "COCO17", "COCO17_val", "COCO_val", "VID", "TRACKINGNET", "UAV123", "UAV_Anti_UAV", "UAV_Anti_UAV_val",
+            "ANTI300", "ANTI300_val", "ANTI300_valid", "ANTI300_IR", "ANTI300_IR_val", "ANTI300_IR_valid"
         ]
         if name == "LASOT":
             if settings.use_lmdb:
@@ -76,6 +76,8 @@ def names2datasets(name_list: list, settings, image_loader):
                 datasets.append(MSCOCOSeq_lmdb(settings.env.coco_lmdb_dir, version="2017", image_loader=image_loader))
             else:
                 datasets.append(MSCOCOSeq(settings.env.coco_dir, version="2017", image_loader=image_loader))
+        if name in ["COCO17_val", "COCO_val"]:
+            datasets.append(MSCOCOSeq(settings.env.coco_dir, version="2017", split="val", image_loader=image_loader))
         if name == "VID":
             if settings.use_lmdb:
                 print("Building VID from lmdb")
@@ -91,19 +93,64 @@ def names2datasets(name_list: list, settings, image_loader):
                 datasets.append(TrackingNet(settings.env.trackingnet_dir, image_loader=image_loader))
         if name == "UAV123":
             datasets.append(UAV123(settings.env.uav123_dir, image_loader=image_loader))
-        if name == "UAV_Anti_UAV":
+        if name in ["UAV_Anti_UAV", "UAV_ANTI_UAV"]:
             datasets.append(UAV_Anti_UAV(settings.env.uav_anti_uav, split="train", image_loader=image_loader))
-        if name == "UAV_Anti_UAV_val":
+        if name in ["UAV_Anti_UAV_val", "UAV_ANTI_UAV_val"]:
             datasets.append(UAV_Anti_UAV(settings.env.uav_anti_uav, split="test", image_loader=image_loader))
         if name == "ANTI300":
             datasets.append(ANTI300(settings.env.anti300_dir, split="train", image_loader=image_loader))
-        if name == "ANTI300_val":
+        if name in ["ANTI300_val", "ANTI300_valid"]:
             datasets.append(ANTI300(settings.env.anti300_dir, split="valid", image_loader=image_loader))
         if name == "ANTI300_IR":
             datasets.append(ANTI300(settings.env.anti300_ir_dir, split="train", image_loader=image_loader))
-        if name == "ANTI300_IR_val":
+        if name in ["ANTI300_IR_val", "ANTI300_IR_valid"]:
             datasets.append(ANTI300(settings.env.anti300_ir_dir, split="valid", image_loader=image_loader))
     return datasets
+
+
+def summarize_datasets(name_list, datasets, ratios=None, phase="TRAIN"):
+    """
+    In bang tong ket chi tiet cac dataset da duoc khoi tao:
+    Bao gom ten trong config, class Python tuong ung, root path, so luong sequence, va ty le sampling.
+    Canh bao nghiem trong neu co dataset rong (0 sequence).
+
+    Complexity: Time O(D) voi D la so dataset (~6), Space O(1).
+    """
+    total_ratio = sum(ratios) if ratios is not None and sum(ratios) > 0 else len(datasets)
+    print("\n" + "=" * 105)
+    print(f"                               DATASET INVENTORY REPORT ({phase.upper()})")
+    print("=" * 105)
+    header = f" {'No':<3} | {'Config Name':<18} | {'Class Name':<15} | {'Root Directory':<42} | {'# Seq':>8} | {'Ratio':>7} "
+    print(header)
+    print("-" * 105)
+
+    total_seqs = 0
+    empty_datasets = []
+
+    for i, (name, ds) in enumerate(zip(name_list, datasets)):
+        ds_class = ds.__class__.__name__
+        root_dir = getattr(ds, "root", getattr(ds, "dataset_dir", "N/A"))
+        if len(root_dir) > 42:
+            display_root = "..." + root_dir[-39:]
+        else:
+            display_root = root_dir
+
+        num_seq = ds.get_num_sequences() if hasattr(ds, "get_num_sequences") else len(ds)
+        total_seqs += num_seq
+
+        ratio_val = (ratios[i] / total_ratio) if ratios is not None and i < len(ratios) else (1.0 / len(datasets))
+        row = f" {i + 1:<3} | {name:<18} | {ds_class:<15} | {display_root:<42} | {num_seq:>8,} | {ratio_val:>7.4f} "
+        print(row)
+
+        if num_seq == 0:
+            empty_datasets.append(name)
+
+    print("-" * 105)
+    print(f" TOTAL SEQUENCES: {total_seqs:,} across {len(datasets)} dataset(s)")
+    if empty_datasets:
+        print(f" [CANH BAO NGUY HIEM] Co {len(empty_datasets)} dataset rong (0 sequences): {empty_datasets}!")
+        print(" Vui long kiem tra lai duong dan va nhan du lieu.")
+    print("=" * 105 + "\n")
 
 
 def build_dataloaders(cfg, settings):
@@ -146,7 +193,12 @@ def build_dataloaders(cfg, settings):
     sampler_mode = getattr(cfg.DATA, "SAMPLER_MODE", "causal")
     train_cls = getattr(cfg.TRAIN, "TRAIN_CLS", False)
     print("sampler_mode", sampler_mode)
-    dataset_train = sampler.TrackingSampler(datasets=names2datasets(cfg.DATA.TRAIN.DATASETS_NAME, settings, opencv_loader),
+
+    datasets_train = names2datasets(cfg.DATA.TRAIN.DATASETS_NAME, settings, opencv_loader)
+    if is_main_process():
+        summarize_datasets(cfg.DATA.TRAIN.DATASETS_NAME, datasets_train, cfg.DATA.TRAIN.DATASETS_RATIO, phase="TRAIN")
+
+    dataset_train = sampler.TrackingSampler(datasets=datasets_train,
                                             p_datasets=cfg.DATA.TRAIN.DATASETS_RATIO,
                                             samples_per_epoch=cfg.DATA.TRAIN.SAMPLE_PER_EPOCH,
                                             max_gap=cfg.DATA.MAX_SAMPLE_INTERVAL, num_search_frames=settings.num_search,
@@ -160,7 +212,11 @@ def build_dataloaders(cfg, settings):
                              num_workers=cfg.TRAIN.NUM_WORKER, drop_last=True, stack_dim=1, sampler=train_sampler)
 
     # Validation samplers and loaders
-    dataset_val = sampler.TrackingSampler(datasets=names2datasets(cfg.DATA.VAL.DATASETS_NAME, settings, opencv_loader),
+    datasets_val = names2datasets(cfg.DATA.VAL.DATASETS_NAME, settings, opencv_loader)
+    if is_main_process():
+        summarize_datasets(cfg.DATA.VAL.DATASETS_NAME, datasets_val, cfg.DATA.VAL.DATASETS_RATIO, phase="VAL")
+
+    dataset_val = sampler.TrackingSampler(datasets=datasets_val,
                                           p_datasets=cfg.DATA.VAL.DATASETS_RATIO,
                                           samples_per_epoch=cfg.DATA.VAL.SAMPLE_PER_EPOCH,
                                           max_gap=cfg.DATA.MAX_SAMPLE_INTERVAL, num_search_frames=settings.num_search,

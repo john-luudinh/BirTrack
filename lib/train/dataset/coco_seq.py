@@ -46,8 +46,35 @@ class MSCOCOSeq(BaseVideoDataset):
         root = env_settings().coco_dir if root is None else root
         super().__init__('COCO', root, image_loader)
 
-        self.img_pth = os.path.join(root, 'images/{}{}/'.format(split, version))
-        self.anno_path = os.path.join(root, 'annotations/instances_{}{}.json'.format(split, version))
+        # Tu dong do tim thu muc anh theo cac layout pho bien (ke ca double-nested)
+        img_candidates = [
+            os.path.join(root, 'images/{}{}/'.format(split, version)),
+            os.path.join(root, '{}{}/{}{}/'.format(split, version, split, version)),
+            os.path.join(root, '{}{}/'.format(split, version)),
+        ]
+        img_pth = None
+        for cand in img_candidates:
+            if os.path.isdir(cand):
+                img_pth = cand
+                break
+        if img_pth is None:
+            raise FileNotFoundError(f"[COCO] Khong tim thay thu muc anh COCO {split}{version} tai: {img_candidates}")
+        self.img_pth = img_pth
+
+        # Tu dong do tim file annotation
+        anno_candidates = [
+            os.path.join(root, 'annotations/instances_{}{}.json'.format(split, version)),
+            os.path.join(root, 'annotations_trainval{}/annotations/instances_{}{}.json'.format(version, split, version)),
+            os.path.join(root, 'annotations_trainval{}/instances_{}{}.json'.format(version, split, version)),
+        ]
+        anno_path = None
+        for cand in anno_candidates:
+            if os.path.isfile(cand):
+                anno_path = cand
+                break
+        if anno_path is None:
+            raise FileNotFoundError(f"[COCO] Khong tim thay file annotation COCO tai: {anno_candidates}")
+        self.anno_path = anno_path
 
         # Load the COCO set.
         self.coco_set = COCO(self.anno_path)

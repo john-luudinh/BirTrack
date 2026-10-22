@@ -1,11 +1,53 @@
 import torch
 import os
 import os.path
+import re
 import numpy as np
 from collections import OrderedDict
 from lib.train.data import jpeg4py_loader
 from .base_video_dataset import BaseVideoDataset
 from lib.train.admin import env_settings
+
+
+def parse_uav123_config(config_file):
+    """
+    Parse file configSeqs.m cua UAV123 de trich xuat chinh xac 123 sequences duoc dinh nghia
+    trong bien `seqUAV123 = {...}`.
+    Moi sequence dinh nghia:
+      - name: ten sequence (vd: 'bike1', 'bird1_1', 'bird1_2', 'car1_s')
+      - folder: thu muc anh thuc te (vd: 'bird1' chua frame cua ca bird1_1 va bird1_2)
+      - startFrame: frame bat dau (1-based, vd: 775 cho bird1_2)
+      - endFrame: frame ket thuc (1-based, vd: 1477 cho bird1_2)
+
+    Complexity: Time O(L) voi L la so dong trong file (~150 dong), Space O(1).
+    """
+    if not os.path.isfile(config_file):
+        return []
+    with open(config_file, 'r', encoding='utf-8', errors='ignore') as f:
+        content = f.read()
+
+    start_pos = content.find("seqUAV123")
+    if start_pos == -1:
+        return []
+    end_pos = content.find("seqs =", start_pos)
+    if end_pos == -1:
+        end_pos = len(content)
+    block = content[start_pos:end_pos]
+
+    pattern = re.compile(
+        r"struct\s*\(\s*'name'\s*,\s*'([^']+)'\s*,\s*'path'\s*,\s*'([^']+)'\s*,\s*'startFrame'\s*,\s*(\d+)\s*,\s*'endFrame'\s*,\s*(\d+)"
+    )
+    matches = pattern.findall(block)
+    records = []
+    for name, raw_path, start, end in matches:
+        folder = raw_path.replace('\\', '/').strip('/ ').split('/')[-1]
+        records.append({
+            'name': name,
+            'folder': folder,
+            'start': int(start),
+            'end': int(end)
+        })
+    return records
 
 
 def list_sequences(root):
@@ -25,14 +67,27 @@ class UAV123(BaseVideoDataset):
         root = env_settings().uav123_dir if root is None else root
         super().__init__('UAV123', root, image_loader)
 
-        # Robust sequence discovery: check nested 'data_seq/UAV123' first, else root directly
+        # Tim thu muc chua anh: thu data_seq/UAV123 truoc, sau do den root
         seq_dir = os.path.join(self.root, "data_seq", "UAV123")
         if not os.path.isdir(seq_dir):
-            seq_dir = self.root
+            seq_dir = os.path.join(self.root, "data_seq")
+            if not os.path.isdir(seq_dir):
+                seq_dir = self.root
         self.seq_dir = seq_dir
 
-        self.sequence_list = list_sequences(self.seq_dir)
-        print("UAV123: {} sequences found in {}".format(len(self.sequence_list), self.seq_dir))
+        # Doc configSeqs.m de map day du 123 scenarios vao 91 folders
+        config_file = os.path.join(self.root, "configSeqs.m")
+        self.seq_records = parse_uav123_config(config_file)
+
+        if len(self.seq_records) == 123:
+            self.sequence_list = [r['name'] for r in self.seq_records]
+            self.seq_record_dict = {r['name']: r for r in self.seq_records}
+            print(f"UAV123: 123 sequences mapped from configSeqs.m (images in: {self.seq_dir})")
+        else:
+            self.sequence_list = list_sequences(self.seq_dir)
+            self.seq_record_dict = {}
+            print(f"UAV123: {len(self.sequence_list)} folders found in {self.seq_dir} (fallback)")
+
         self.seq_to_class_map, self.seq_per_class = self._load_class_info()
 
     def _load_class_info(self):
@@ -69,8 +124,8 @@ class UAV123(BaseVideoDataset):
         # Check anno/UAV123, then anno/, then root/
         anno_candidates = [
             os.path.join(self.root, "anno", "UAV123", video_name + ".txt"),
-            os.path.join(self.root, "anno", "UAV123", video_name + "_1.txt"),
             os.path.join(self.root, "anno", video_name + ".txt"),
+            os.path.join(self.root, "anno", "UAV123", video_name + "_1.txt"),
             os.path.join(self.root, video_name + ".txt")
         ]
 
@@ -102,24 +157,34 @@ class UAV123(BaseVideoDataset):
 
     def _get_frame(self, seq_id, frame_id):
         video_name = self.sequence_list[seq_id]
-        frame_id_str = str(frame_id).zfill(6) # 0-indexed or 1-indexed
 
-        frame_candidates = [
-            os.path.join(self.seq_dir, video_name, frame_id_str + ".jpg"),
-            os.path.join(self.seq_dir, video_name, str(frame_id + 1).zfill(6) + ".jpg"),
-            os.path.join(self.root, "data_seq", "UAV123", video_name, frame_id_str + ".jpg"),
-            os.path.join(self.root, "data_seq", "UAV123", video_name, str(frame_id + 1).zfill(6) + ".jpg")
-        ]
+        if video_name in self.seq_record_dict:
+            rec = self.seq_record_dict[video_name]
+            folder = rec['folder']
+            # frame_id la 0-indexed trong doan video, can cong startFrame (1-based)
+            actual_frame = rec['start'] + frame_id
+            frame_id_str = f"{actual_frame:06d}.jpg"
 
-        frame_path = None
-        for cand in frame_candidates:
-            if os.path.isfile(cand):
-                frame_path = cand
-                break
-
-        if frame_path is None:
+            frame_candidates = [
+                os.path.join(self.seq_dir, folder, frame_id_str),
+                os.path.join(self.root, "data_seq", "UAV123", folder, frame_id_str),
+                os.path.join(self.root, "data_seq", folder, frame_id_str),
+            ]
+            for cand in frame_candidates:
+                if os.path.isfile(cand):
+                    return self.image_loader(cand)
+            raise FileNotFoundError(f"Frame {actual_frame} not found for UAV123 sequence '{video_name}' in folder '{folder}'")
+        else:
+            # Fallback 1-based indexing cho thu muc phang
+            frame_id_str = str(frame_id + 1).zfill(6) + ".jpg"
+            frame_candidates = [
+                os.path.join(self.seq_dir, video_name, frame_id_str),
+                os.path.join(self.root, "data_seq", "UAV123", video_name, frame_id_str),
+            ]
+            for cand in frame_candidates:
+                if os.path.isfile(cand):
+                    return self.image_loader(cand)
             raise FileNotFoundError(f"Frame {frame_id} not found for UAV123 sequence '{video_name}' under {self.seq_dir}")
-        return self.image_loader(frame_path)
 
     def get_class_name(self, seq_id):
         seq_name = self.sequence_list[seq_id]
